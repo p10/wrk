@@ -212,7 +212,6 @@ type OfferRow = {
   skills?: string;
   locations?: string;
   languages?: string;
-  experienceLevel?: string;
 };
 
 describe('browse (empty state)', () => {
@@ -272,7 +271,6 @@ describe('browse (initial render)', () => {
       locations: 'Gdańsk | Warszawa',
       languages: 'en: C1',
       postedAt: '2026-07-20',
-      experienceLevel: 'senior',
     });
     await browse(db);
     const out = render();
@@ -282,7 +280,6 @@ describe('browse (initial render)', () => {
     expect(out).toContain('locations: Gdańsk | Warszawa');
     expect(out).toContain('languages: en: C1');
     expect(out).toContain('posted: 2026-07-20');
-    expect(out).toContain('level: senior');
   });
 
   it('always renders the offer link in dim', async () => {

@@ -25,7 +25,6 @@ function oneOffer(over: Record<string, unknown> = {}): Record<string, unknown> {
     slug: 'acme-x',
     title: 'Senior X',
     companyName: 'Acme',
-    experienceLevel: 'senior',
     workplaceType: 'remote',
     publishedAt: '2026-07-20T10:00:00.000Z',
     requiredSkills: [{ name: 'TypeScript', level: 4 }, { name: 'React' }],
@@ -59,7 +58,6 @@ describe('fetchJustJoin', () => {
       title: 'Senior X',
       company: 'Acme',
       link: 'https://justjoin.it/job-offer/acme-x',
-      experienceLevel: 'senior',
       workplaceType: 'remote',
       publishedAt: '2026-07-20',
       requiredSkills: 'TypeScript:4, React',
@@ -100,7 +98,6 @@ describe('fetchJustJoin', () => {
       offers: [o],
     } = await fetchJustJoin();
     assertDefined(o);
-    expect(o.experienceLevel).toBeUndefined();
     expect(o.workplaceType).toBeUndefined();
     expect(o.publishedAt).toBeUndefined();
     expect(o.requiredSkills).toBeUndefined();

@@ -15,7 +15,6 @@ export type JustJoinOffer = {
   title: string;
   company: string;
   link: string;
-  experienceLevel?: string;
   workplaceType?: string;
   publishedAt?: string;
   requiredSkills?: string;

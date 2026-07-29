@@ -24,7 +24,6 @@ export type Offer = {
   title: string;
   company: string;
 
-  experienceLevel?: string;
   workplaceType?: string;
   postedAt?: string;
   salary?: string;
@@ -40,13 +39,18 @@ export type OfferRow = Offer & {
 };
 
 export function initTable(db: Db): void {
+  const existed = !!db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='offers'",
+    )
+    .get();
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS offers (
       link TEXT PRIMARY KEY,
       source TEXT NOT NULL,
       title TEXT,
       company TEXT,
-      experienceLevel TEXT,
       workplaceType TEXT,
       postedAt TEXT,
       salary TEXT,
@@ -57,6 +61,20 @@ export function initTable(db: Db): void {
       savedAt TEXT NOT NULL
     );
   `);
+
+  if (!existed) {
+    db.exec('PRAGMA user_version = 2');
+    return;
+  }
+
+  const { user_version: version } = db.prepare('PRAGMA user_version').get() as {
+    user_version: number;
+  };
+
+  if (version < 2) {
+    db.exec('ALTER TABLE offers DROP COLUMN experienceLevel');
+    db.exec('PRAGMA user_version = 2');
+  }
 }
 
 export async function fetchOffers(): Promise<{
@@ -83,9 +101,9 @@ export function saveOffers(
 ): { inserted: number; skipped: number } {
   const insert = db.prepare(`
     INSERT OR IGNORE INTO offers (
-      link, source, title, company, experienceLevel, workplaceType,
+      link, source, title, company, workplaceType,
       postedAt, salary, skills, locations, languages, savedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   let inserted = 0;
   let skipped = 0;
@@ -112,7 +130,7 @@ export function saveOffers(
 
 export function selectVisibleOffers(db: Db): OfferRow[] {
   const select = db.prepare(`
-    SELECT link, source, title, company, experienceLevel, workplaceType,
+    SELECT link, source, title, company, workplaceType,
            postedAt, salary, skills, locations, languages, hidden, savedAt
     FROM offers
     WHERE hidden = 0
