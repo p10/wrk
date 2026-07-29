@@ -1,5 +1,13 @@
-import { fetchDesc as fetchJustJoinDesc, fetchJustJoin, type JustJoinOffer } from './justjoin.ts';
-import { fetchDesc as fetchLinkedInDesc, fetchLinkedInJobs, type LinkedInOffer } from './linkedin.ts';
+import {
+  fetchDesc as fetchJustJoinDesc,
+  fetchJustJoin,
+  type JustJoinOffer,
+} from './justjoin.ts';
+import {
+  fetchDesc as fetchLinkedInDesc,
+  fetchLinkedInJobs,
+  type LinkedInOffer,
+} from './linkedin.ts';
 import { type Db } from './db.ts';
 
 export type OfferSource = 'linkedin' | 'justjoin';
@@ -51,14 +59,20 @@ export function initTable(db: Db): void {
   `);
 }
 
-export async function fetchOffers(): Promise<{ offers: Offer[]; urls: string[] }> {
+export async function fetchOffers(): Promise<{
+  offers: Offer[];
+  urls: string[];
+}> {
   const [linkedin, justjoin] = await Promise.all([
     fetchLinkedInJobs(),
     fetchJustJoin(),
   ]);
 
   return {
-    offers: [...linkedin.offers.map(mapLinkedInOffer), ...justjoin.offers.map(mapJustJoinOffer)],
+    offers: [
+      ...linkedin.offers.map(mapLinkedInOffer),
+      ...justjoin.offers.map(mapJustJoinOffer),
+    ],
     urls: [linkedin.url, justjoin.url],
   };
 }
@@ -82,7 +96,6 @@ export function saveOffers(
       o.source,
       o.title,
       o.company,
-      o.experienceLevel ?? null,
       o.workplaceType ?? null,
       o.postedAt ?? null,
       o.salary ?? null,
@@ -130,7 +143,6 @@ function mapJustJoinOffer(offer: JustJoinOffer): Offer {
     link: offer.link,
     title: offer.title,
     company: offer.company,
-    experienceLevel: offer.experienceLevel,
     workplaceType: offer.workplaceType,
     postedAt: offer.publishedAt,
     salary: offer.employmentType,

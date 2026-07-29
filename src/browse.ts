@@ -1,7 +1,12 @@
 import { spawnSync } from 'node:child_process';
 
 import { type Db } from './db.ts';
-import { fetchDesc, markHidden, selectVisibleOffers, type OfferRow } from './offer.ts';
+import {
+  fetchDesc,
+  markHidden,
+  selectVisibleOffers,
+  type OfferRow,
+} from './offer.ts';
 import { Tui, DIM, RESET } from './tui.ts';
 
 export function browse(db: Db): () => void {
@@ -104,7 +109,6 @@ export function browse(db: Db): () => void {
     if (o.locations) header.push(`locations: ${o.locations}`);
     if (o.languages) header.push(`languages: ${o.languages}`);
     if (o.postedAt) header.push(`posted: ${o.postedAt}`);
-    if (o.experienceLevel) header.push(`level: ${o.experienceLevel}`);
     header.push('');
     header.push(`${DIM}${o.link}${RESET}`);
 

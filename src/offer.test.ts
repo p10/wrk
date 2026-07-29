@@ -113,7 +113,6 @@ describe('saveOffers', () => {
         link: 'l',
         title: 'T',
         company: 'C',
-        experienceLevel: 'senior',
         workplaceType: 'remote',
         postedAt: '2026-07-20',
         salary: 'b2b 100 - 200 (month) PLN gross',
@@ -122,7 +121,8 @@ describe('saveOffers', () => {
         languages: 'en: C1',
       },
     ]);
-    const [row] = selectVisibleOffers(db); assertDefined(row);
+    const [row] = selectVisibleOffers(db);
+    assertDefined(row);
     expect(row).toMatchObject({
       source: 'justjoin',
       link: 'l',
@@ -142,8 +142,8 @@ describe('saveOffers', () => {
     saveOffers(db, [
       { source: 'linkedin', link: 'l', title: 'T', company: 'C' },
     ]);
-    const [row] = selectVisibleOffers(db); assertDefined(row);
-    expect(row.experienceLevel).toBeNull();
+    const [row] = selectVisibleOffers(db);
+    assertDefined(row);
     expect(row.workplaceType).toBeNull();
     expect(row.postedAt).toBeNull();
     expect(row.salary).toBeNull();
@@ -156,7 +156,8 @@ describe('saveOffers', () => {
     saveOffers(db, [
       { source: 'linkedin', link: 'l', title: 'T', company: 'C' },
     ]);
-    const [row] = selectVisibleOffers(db); assertDefined(row);
+    const [row] = selectVisibleOffers(db);
+    assertDefined(row);
     expect(row.savedAt).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
@@ -191,7 +192,8 @@ describe('selectVisibleOffers', () => {
     saveOffers(db, [
       { source: 'linkedin', link: 'l', title: 'T', company: 'C' },
     ]);
-    const [row] = selectVisibleOffers(db); assertDefined(row);
+    const [row] = selectVisibleOffers(db);
+    assertDefined(row);
     expect(row.hidden).toBe(0);
     expect(row.savedAt).toEqual(expect.any(String));
   });
@@ -321,8 +323,14 @@ describe('fetchOffers', () => {
   });
 
   it('returns an empty offers array and two urls when both sources return empty', async () => {
-    mockedFetchLinkedInJobs.mockResolvedValue({ offers: [], url: 'https://linkedin.com/jobs/search' });
-    mockedFetchJustJoin.mockResolvedValue({ offers: [], url: 'https://justjoin.it/api/offers' });
+    mockedFetchLinkedInJobs.mockResolvedValue({
+      offers: [],
+      url: 'https://linkedin.com/jobs/search',
+    });
+    mockedFetchJustJoin.mockResolvedValue({
+      offers: [],
+      url: 'https://justjoin.it/api/offers',
+    });
     const { offers, urls } = await fetchOffers();
     expect(offers).toEqual([]);
     expect(urls).toHaveLength(2);
@@ -349,7 +357,10 @@ describe('fetchOffers', () => {
       url: '',
     });
     mockedFetchJustJoin.mockResolvedValue({ offers: [], url: '' });
-    const { offers: [o] } = await fetchOffers(); assertDefined(o);
+    const {
+      offers: [o],
+    } = await fetchOffers();
+    assertDefined(o);
     expect(o.postedAt).toBe('3 days ago');
     expect(o.locations).toBeUndefined();
   });
@@ -373,7 +384,10 @@ describe('fetchOffers', () => {
       ],
       url: '',
     });
-    const { offers: [o] } = await fetchOffers(); assertDefined(o);
+    const {
+      offers: [o],
+    } = await fetchOffers();
+    assertDefined(o);
     expect(o).toMatchObject({
       source: 'justjoin',
       title: 'J',

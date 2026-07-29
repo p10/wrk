@@ -81,9 +81,12 @@ const mockedJustJoinFetchDesc = vi.mocked(
   (await import('./justjoin.ts')).fetchDesc,
   { deep: false },
 );
-const mockedSpawnSync = vi.mocked((await import('node:child_process')).spawnSync, {
-  deep: false,
-});
+const mockedSpawnSync = vi.mocked(
+  (await import('node:child_process')).spawnSync,
+  {
+    deep: false,
+  },
+);
 
 function makeDb(): Db {
   const d = new DatabaseSync(':memory:');
@@ -193,7 +196,6 @@ function insertOffer(over: Partial<OfferRow> = {}): string {
       skills: over.skills,
       locations: over.locations,
       languages: over.languages,
-      experienceLevel: over.experienceLevel,
     },
   ]);
   return link;
@@ -295,7 +297,9 @@ describe('browse (initial render)', () => {
     insertOffer();
     insertOffer();
     await browse(db);
-    expect(render()).toMatch(/\[1\/3\].*l=next.*h=prev.*o=open.*m=hide.*q=quit/);
+    expect(render()).toMatch(
+      /\[1\/3\].*l=next.*h=prev.*o=open.*m=hide.*q=quit/,
+    );
   });
 
   it('initial linkedin render triggers description fetch and shows "getting desc..."', async () => {
@@ -568,9 +572,10 @@ describe('browse (description trimming)', () => {
     });
 
     await browse(db);
-    const long = Array.from({ length: 50 }, (_, i) => `Paragraph ${i + 1}.`).join(
-      '\n',
-    );
+    const long = Array.from(
+      { length: 50 },
+      (_, i) => `Paragraph ${i + 1}.`,
+    ).join('\n');
     mockState.pendingDesc[0]!.resolve(long);
     await flush();
     const out = render();

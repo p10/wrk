@@ -75,11 +75,12 @@ function normalizeOffer(raw: Record<string, unknown>): JustJoinOffer {
       slug: str(l.slug),
     }),
   );
+  const level = optStr(raw.experienceLevel);
+  const strLevel = level ? ` (${level})` : '';
   return {
-    title: str(raw.title),
+    title: `${str(raw.title)}${strLevel}`,
     company: str(raw.companyName),
     link: slug ? `https://justjoin.it/job-offer/${slug}` : '',
-    experienceLevel: optStr(raw.experienceLevel),
     workplaceType: optStr(raw.workplaceType),
     publishedAt: toDate(raw.publishedAt),
     requiredSkills:
