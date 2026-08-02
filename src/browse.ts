@@ -172,10 +172,17 @@ export function browse(db: Db): () => void {
       }
     }
 
+    const usedRows = [...header, ...trimmed, ...footer].reduce(
+      (n, l) => n + visualRows(l, cols),
+      0,
+    );
+    const pad = rows - usedRows;
+    if (pad > 0) {
+      trimmed.push(...Array<string>(pad).fill(''));
+    }
     const lines = [...header, ...trimmed, ...footer];
     tui.clear();
     tui.write(lines.join('\n'));
-    process.stdout.write(`${rows}, ${cols}`);
   }
 
   return () => tui.cleanup();

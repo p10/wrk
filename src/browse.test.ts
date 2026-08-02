@@ -609,6 +609,27 @@ describe('browse (description trimming)', () => {
     expect(moreIdx).toBeGreaterThan(headIdx);
   });
 
+  it('keeps the footer pinned to the bottom row even when the description is truncated', async () => {
+    insertOffer({ source: 'linkedin' });
+    Object.defineProperty(process.stdout, 'rows', {
+      configurable: true,
+      value: 24,
+    });
+    await browse(db);
+    mockState.pendingDesc[0]!.resolve(
+      Array.from({ length: 200 })
+        .map(() => 'x'.repeat(60))
+        .join('\n'),
+    );
+    await flush();
+    const stripped = render().replace(/\x1b\[[0-9;]*m/g, '');
+    const lines = stripped.split('\n');
+    expect(lines.length).toBe(24);
+    // the help line is the very last rendered row (bottom of the screen)
+    expect(lines[23]).toContain('[1/1]');
+    expect(lines[23]).toContain('q=quit');
+  });
+
   it('falls back to a single non-empty desc line when avail <= 0', async () => {
     insertOffer({ source: 'linkedin' });
     Object.defineProperty(process.stdout, 'rows', {
