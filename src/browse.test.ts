@@ -295,7 +295,7 @@ describe('browse (initial render)', () => {
     insertOffer();
     await browse(db);
     expect(render()).toMatch(
-      /\[1\/3\].*l=next.*h=prev.*o=open.*m=hide.*q=quit/,
+      /\[1\/3\].*n=next.*p=prev.*o=open.*m=hide.*q=quit/,
     );
   });
 
@@ -355,8 +355,8 @@ describe('browse (description fetching)', () => {
     mockState.pendingDesc[0]!.resolve('desc body');
     await flush();
     // move away then back
-    await press('l');
-    await press('h');
+    await press('n');
+    await press('p');
     // linkedin fetch was called once for each offer (different links),
     // but never twice for the same link.
     const calls = mockedLinkedInFetchDesc.mock.calls.map((c) => c[0]);
@@ -370,8 +370,8 @@ describe('browse (description fetching)', () => {
     await browse(db);
     expect(mockedLinkedInFetchDesc).toHaveBeenCalledTimes(1);
     // navigate to next and back — linkedin fetchDesc is cached as 'loading'
-    await press('l');
-    await press('h');
+    await press('n');
+    await press('p');
     expect(mockedLinkedInFetchDesc).toHaveBeenCalledTimes(1);
     expect(mockedJustJoinFetchDesc).toHaveBeenCalledTimes(1);
   });
@@ -396,10 +396,10 @@ describe('browse (navigation)', () => {
     await browse(db);
     expect(render()).toContain('A');
     expect(render()).toContain('[1/3]');
-    await press('l');
+    await press('n');
     expect(render()).toContain('B');
     expect(render()).toContain('[2/3]');
-    await press('l');
+    await press('n');
     expect(render()).toContain('C');
     expect(render()).toContain('[3/3]');
   });
@@ -407,7 +407,7 @@ describe('browse (navigation)', () => {
   it('l at the last offer does not advance past the end', async () => {
     insertOffer({ title: 'Only', postedAt: '2026-07-21' });
     await browse(db);
-    await press('l');
+    await press('n');
     expect(render()).toContain('Only');
     expect(render()).toContain('[1/1]');
   });
@@ -416,7 +416,7 @@ describe('browse (navigation)', () => {
     insertOffer({ title: 'First', postedAt: '2026-07-21' });
     insertOffer({ title: 'Second', postedAt: '2026-07-20' });
     await browse(db);
-    await press('h');
+    await press('p');
     expect(render()).toContain('First');
     expect(render()).toContain('[1/2]');
   });
@@ -425,9 +425,9 @@ describe('browse (navigation)', () => {
     insertOffer({ title: 'A', postedAt: '2026-07-21' });
     insertOffer({ title: 'B', postedAt: '2026-07-20' });
     await browse(db);
-    await press('l');
+    await press('n');
     expect(render()).toContain('B');
-    await press('h');
+    await press('p');
     expect(render()).toContain('A');
     expect(render()).toContain('[1/2]');
   });
@@ -481,7 +481,7 @@ describe('browse (hide current)', () => {
     insertOffer({ title: 'A', postedAt: '2026-07-21' });
     insertOffer({ title: 'B', postedAt: '2026-07-20' });
     await browse(db);
-    await press('l');
+    await press('n');
     expect(render()).toContain('B');
     await press('m');
     expect(render()).toContain('A');

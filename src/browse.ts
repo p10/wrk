@@ -29,10 +29,10 @@ export function browse(db: Db): () => void {
       case '\x03':
         tui.quit();
         break;
-      case 'l':
+      case 'n':
         move(1);
         break;
-      case 'h':
+      case 'p':
         move(-1);
         break;
       case 'o':
@@ -130,7 +130,7 @@ export function browse(db: Db): () => void {
 
     const footer: string[] = [
       '',
-      `${DIM}[${i + 1}/${offers.length}]  l=next  h=prev  o=open  m=hide  q=quit${RESET}`,
+      `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
     ];
 
     const rows = process.stdout.rows ?? 24;
