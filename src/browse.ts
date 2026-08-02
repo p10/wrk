@@ -157,7 +157,10 @@ export function browse(db: Db): () => void {
         used += r;
       }
       if (!truncated) {
-        // no marker needed
+        while (used < avail) {
+          trimmed.push('');
+          used += 1;
+        }
       } else {
         while (trimmed.length > 0 && used + moreRows > avail) {
           const last = trimmed.pop() as string;
@@ -172,6 +175,7 @@ export function browse(db: Db): () => void {
     const lines = [...header, ...trimmed, ...footer];
     tui.clear();
     tui.write(lines.join('\n') + '\n');
+    process.stdout.write(`${rows}, ${cols}`);
   }
 
   return () => tui.cleanup();
