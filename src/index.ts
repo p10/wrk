@@ -3,7 +3,7 @@
 import { fetchOffers, initTable, saveOffers } from './offer.ts';
 import { getDb, type Db } from './db.ts';
 import { browse } from './browse.ts';
-import { DIM, GREEN, RESET } from './tui.ts';
+import { TuiClient, DIM, GREEN, RESET } from './tui.ts';
 
 let cleanup: (() => void) | undefined;
 
@@ -16,7 +16,7 @@ async function main() {
     cleanup = () => db.close();
     await fetch(db);
   } else {
-    cleanup = browse(db);
+    cleanup = browse(db, new TuiClient());
   }
 }
 

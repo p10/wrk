@@ -7,9 +7,9 @@ import {
   selectVisibleOffers,
   type OfferRow,
 } from './offer.ts';
-import { Tui, DIM, RESET } from './tui.ts';
+import { type Tui, DIM, RESET } from './tui.ts';
 
-export function browse(db: Db): () => void {
+export function browse(db: Db, tui: Tui): () => void {
   let offers: OfferRow[] = selectVisibleOffers(db);
   let i = 0;
 
@@ -19,7 +19,6 @@ export function browse(db: Db): () => void {
     return () => {};
   }
 
-  const tui = new Tui();
   tui.onCleanup(() => db.close());
   tui.enter();
   tui.hideCursor();

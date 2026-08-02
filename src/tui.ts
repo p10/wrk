@@ -9,7 +9,20 @@ const GREEN = '\x1b[32m';
 
 export { DIM, GREEN, RESET };
 
-export class Tui {
+export interface Tui {
+  enter(): void;
+  exit(): void;
+  clear(): void;
+  write(text: string): void;
+  hideCursor(): void;
+  showCursor(): void;
+  onKey(handler: (key: string) => void): void;
+  onCleanup(callback: () => void): void;
+  cleanup(): void;
+  quit(code?: number): void;
+}
+
+export class TuiClient implements Tui {
   #originalIsRaw?: boolean;
   #wrap?: (data: Buffer) => void;
   #cleanupCallbacks: Array<() => void> = [];

@@ -1,61 +1,28 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { browse } from './browse.ts';
 import { type Db } from './db.ts';
 import { initTable, saveOffers } from './offer.ts';
 
-const mockState = vi.hoisted(() => ({
-  writes: [] as string[],
-  keyHandler: undefined as ((k: string) => void) | undefined,
-  cleanupCallbacks: [] as (() => void)[],
-  cleaned: false,
-  quitCalled: false,
-  pendingDesc: [] as Array<{
-    resolve: (s: string) => void;
-    reject: (e: unknown) => void;
-  }>,
-}));
-
-vi.mock('./tui.ts', () => {
-  class MockTui {
-    onKey(cb: (k: string) => void): void {
-      mockState.keyHandler = cb;
-    }
-    onCleanup(cb: () => void): void {
-      mockState.cleanupCallbacks.push(cb);
-    }
-    enter(): void {}
-    hideCursor(): void {}
-    clear(): void {
-      mockState.writes.length = 0;
-    }
-    write(s: string): void {
-      mockState.writes.push(s);
-    }
-    showCursor(): void {}
-    cleanup(): void {
-      for (const cb of mockState.cleanupCallbacks) cb();
-      mockState.cleanupCallbacks.length = 0;
-      mockState.cleaned = true;
-    }
-    quit(): void {
-      this.cleanup();
-      mockState.quitCalled = true;
-    }
-    exit(): void {}
-  }
-  return {
-    DIM: '\x1b[2m',
-    RESET: '\x1b[0m',
-    Tui: MockTui,
-  };
-});
+type OfferRow = {
+  source: 'linkedin' | 'justjoin';
+  link: string;
+  title: string;
+  company: string;
+  salary?: string;
+  workplaceType?: string;
+  postedAt?: string;
+  skills?: string;
+  locations?: string;
+  languages?: string;
+};
 
 vi.mock('./linkedin.ts', () => ({
   fetchDesc: vi.fn(
     (_link: string) =>
       new Promise<string>((resolve, reject) => {
-        mockState.pendingDesc.push({ resolve, reject });
+        tuiState.pendingDesc.push({ resolve, reject });
       }),
   ),
 }));
@@ -64,7 +31,7 @@ vi.mock('./justjoin.ts', () => ({
   fetchDesc: vi.fn(
     (_link: string) =>
       new Promise<string>((resolve, reject) => {
-        mockState.pendingDesc.push({ resolve, reject });
+        tuiState.pendingDesc.push({ resolve, reject });
       }),
   ),
 }));
@@ -72,6 +39,64 @@ vi.mock('./justjoin.ts', () => ({
 vi.mock('node:child_process', () => ({
   spawnSync: vi.fn(),
 }));
+
+let tuiState: ReturnType<typeof makeTuiState>;
+
+function makeTuiState() {
+  const writes: string[] = [];
+  let keyHandler: ((k: string) => void) | undefined;
+  const cleanupCallbacks: Array<() => void> = [];
+  let cleaned = false;
+  let quitCalled = false;
+  const pendingDesc: Array<{
+    resolve: (s: string) => void;
+    reject: (e: unknown) => void;
+  }> = [];
+
+  const tui = {
+    writes,
+    cleaned: false,
+    quitCalled: false,
+    onKey(cb: (k: string) => void): void {
+      keyHandler = cb;
+    },
+    onCleanup(cb: () => void): void {
+      cleanupCallbacks.push(cb);
+    },
+    enter(): void {},
+    hideCursor(): void {},
+    clear(): void {
+      writes.length = 0;
+    },
+    write(s: string): void {
+      writes.push(s);
+    },
+    showCursor(): void {},
+    cleanup(): void {
+      for (const cb of cleanupCallbacks) cb();
+      cleanupCallbacks.length = 0;
+      cleaned = true;
+    },
+    quit(): void {
+      this.cleanup();
+      quitCalled = true;
+    },
+    exit(): void {},
+  };
+
+  Object.defineProperty(tui, 'cleaned', {
+    get() {
+      return cleaned;
+    },
+  });
+  Object.defineProperty(tui, 'quitCalled', {
+    get() {
+      return quitCalled;
+    },
+  });
+
+  return { tui, writes, getKeyHandler: () => keyHandler, pendingDesc };
+}
 
 const mockedLinkedInFetchDesc = vi.mocked(
   (await import('./linkedin.ts')).fetchDesc,
@@ -111,12 +136,7 @@ let origConsoleLog: typeof console.log;
 beforeEach(() => {
   db = makeDb();
   initTable(db);
-  mockState.writes.length = 0;
-  mockState.keyHandler = undefined;
-  mockState.cleanupCallbacks.length = 0;
-  mockState.cleaned = false;
-  mockState.quitCalled = false;
-  mockState.pendingDesc.length = 0;
+  tuiState = makeTuiState();
   mockedLinkedInFetchDesc.mockClear();
   mockedJustJoinFetchDesc.mockClear();
   mockedSpawnSync.mockClear();
@@ -155,31 +175,25 @@ afterEach(() => {
   db.close();
 });
 
-/** Resolve all pending microtasks so async .then/.catch handlers run. */
 async function flush(): Promise<void> {
   await new Promise((r) => setImmediate(r));
 }
 
-/**
- * Drive the TUI with the given key. Returns the rendered output after the key
- * press; throws if no key handler is installed (no offers / not in TUI mode).
- */
 async function press(key: string): Promise<string> {
-  if (!mockState.keyHandler) throw new Error('no key handler installed');
-  const prev = mockState.writes.join('');
-  mockState.writes.length = 0;
-  mockState.keyHandler(key);
+  const kh = tuiState.getKeyHandler();
+  if (!kh) throw new Error('no key handler installed');
+  const prev = tuiState.writes.join('');
+  tuiState.writes.length = 0;
+  kh(key);
   await flush();
-  // If the key caused no re-render, restore the prior visible content so
-  // render() reflects what is actually on screen.
-  if (mockState.writes.length === 0) {
-    mockState.writes.push(prev);
+  if (tuiState.writes.length === 0) {
+    tuiState.writes.push(prev);
   }
-  return mockState.writes.join('');
+  return tuiState.writes.join('');
 }
 
 function render(): string {
-  return mockState.writes.join('');
+  return tuiState.writes.join('');
 }
 
 function insertOffer(over: Partial<OfferRow> = {}): string {
@@ -201,41 +215,28 @@ function insertOffer(over: Partial<OfferRow> = {}): string {
   return link;
 }
 
-type OfferRow = {
-  source: 'linkedin' | 'justjoin';
-  link: string;
-  title: string;
-  company: string;
-  salary?: string;
-  workplaceType?: string;
-  postedAt?: string;
-  skills?: string;
-  locations?: string;
-  languages?: string;
-};
-
 describe('browse (empty state)', () => {
-  it('prints "No offers to show." and returns a no-op cleanup', async () => {
+  it('prints "No offers to show." and returns a no-op cleanup', () => {
     const logSpy = vi.fn();
     console.log = logSpy;
-    const cleanup = await browse(db);
+    const cleanup = browse(db, tuiState.tui);
     expect(logSpy).toHaveBeenCalledWith('No offers to show.');
     expect(cleanup).toBeTypeOf('function');
     expect(() => cleanup()).not.toThrow();
-    expect(mockState.cleaned).toBe(false);
+    expect(tuiState.tui.cleaned).toBe(false);
   });
 
-  it('closes the db when there are no offers', async () => {
+  it('closes the db when there are no offers', () => {
     console.log = vi.fn();
     const closeSpy = vi.spyOn(db, 'close');
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('does not install a key handler when there are no offers', async () => {
+  it('does not install a key handler when there are no offers', () => {
     console.log = vi.fn();
-    await browse(db);
-    expect(mockState.keyHandler).toBeUndefined();
+    browse(db, tuiState.tui);
+    expect(tuiState.getKeyHandler()).toBeUndefined();
   });
 });
 
@@ -253,7 +254,7 @@ describe('browse (initial render)', () => {
       source: 'justjoin',
       postedAt: '2026-07-20',
     });
-    await browse(db);
+    browse(db, tuiState.tui);
     const out = render();
     expect(out).toContain('Senior X');
     expect(out).toContain('Acme  (linkedin)');
@@ -272,7 +273,7 @@ describe('browse (initial render)', () => {
       languages: 'en: C1',
       postedAt: '2026-07-20',
     });
-    await browse(db);
+    browse(db, tuiState.tui);
     const out = render();
     expect(out).toContain('b2b 100 - 200 (month) PLN gross');
     expect(out).toContain('remote');
@@ -284,7 +285,7 @@ describe('browse (initial render)', () => {
 
   it('always renders the offer link in dim', async () => {
     const link = insertOffer();
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(render()).toContain(link);
     expect(render()).toContain('\x1b[2m');
   });
@@ -293,7 +294,7 @@ describe('browse (initial render)', () => {
     insertOffer();
     insertOffer();
     insertOffer();
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(render()).toMatch(
       /\[1\/3\].*n=next.*p=prev.*o=open.*m=hide.*q=quit/,
     );
@@ -301,14 +302,14 @@ describe('browse (initial render)', () => {
 
   it('initial linkedin render triggers description fetch and shows "getting desc..."', async () => {
     insertOffer({ source: 'linkedin' });
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(mockedLinkedInFetchDesc).toHaveBeenCalledTimes(1);
     expect(render()).toContain('getting desc...');
   });
 
   it('does not fetch description for an unknown source', async () => {
     insertOffer({ source: 'justjoin' });
-    await browse(db);
+    browse(db, tuiState.tui);
     const ljCalls = mockedLinkedInFetchDesc.mock.calls.length;
     const jjCalls = mockedJustJoinFetchDesc.mock.calls.length;
     expect(ljCalls).toBe(0);
@@ -319,9 +320,9 @@ describe('browse (initial render)', () => {
 describe('browse (description fetching)', () => {
   it('renders fetched description text after linkedin fetch resolves', async () => {
     insertOffer({ source: 'linkedin' });
-    await browse(db);
-    expect(mockState.pendingDesc).toHaveLength(1);
-    mockState.pendingDesc[0]!.resolve('Hello world description');
+    browse(db, tuiState.tui);
+    expect(tuiState.pendingDesc).toHaveLength(1);
+    tuiState.pendingDesc[0]!.resolve('Hello world description');
     await flush();
     const out = render();
     expect(out).toContain('Hello world description');
@@ -330,8 +331,8 @@ describe('browse (description fetching)', () => {
 
   it('renders "error: <msg>" when the description fetch rejects', async () => {
     insertOffer({ source: 'linkedin' });
-    await browse(db);
-    mockState.pendingDesc[0]!.reject(new Error('boom'));
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.reject(new Error('boom'));
     await flush();
     const out = render();
     expect(out).toContain('error: boom');
@@ -340,10 +341,10 @@ describe('browse (description fetching)', () => {
 
   it('uses fetchJustJoinDesc for justjoin offers', async () => {
     insertOffer({ source: 'justjoin' });
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(mockedJustJoinFetchDesc).toHaveBeenCalledTimes(1);
     expect(mockedLinkedInFetchDesc).not.toHaveBeenCalled();
-    mockState.pendingDesc[0]!.resolve('JJ body');
+    tuiState.pendingDesc[0]!.resolve('JJ body');
     await flush();
     expect(render()).toContain('JJ body');
   });
@@ -351,14 +352,11 @@ describe('browse (description fetching)', () => {
   it('caches description across renders — no re-fetch on revisit', async () => {
     const link = insertOffer({ source: 'linkedin' });
     insertOffer({ source: 'linkedin' });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve('desc body');
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve('desc body');
     await flush();
-    // move away then back
     await press('n');
     await press('p');
-    // linkedin fetch was called once for each offer (different links),
-    // but never twice for the same link.
     const calls = mockedLinkedInFetchDesc.mock.calls.map((c) => c[0]);
     expect(calls.filter((l) => l === link)).toHaveLength(1);
     expect(render()).toContain('desc body');
@@ -367,9 +365,8 @@ describe('browse (description fetching)', () => {
   it('does not re-fetch while the description is still loading', async () => {
     insertOffer({ source: 'linkedin' });
     insertOffer({ source: 'justjoin' });
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(mockedLinkedInFetchDesc).toHaveBeenCalledTimes(1);
-    // navigate to next and back — linkedin fetchDesc is cached as 'loading'
     await press('n');
     await press('p');
     expect(mockedLinkedInFetchDesc).toHaveBeenCalledTimes(1);
@@ -378,10 +375,9 @@ describe('browse (description fetching)', () => {
 
   it('does not crash if description text is empty after resolve', async () => {
     insertOffer({ source: 'linkedin' });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve('');
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve('');
     await flush();
-    // contains only the header + footer, no 'desc' body, no error
     const out = render();
     expect(out).not.toContain('getting desc...');
     expect(out).not.toContain('error:');
@@ -389,11 +385,11 @@ describe('browse (description fetching)', () => {
 });
 
 describe('browse (navigation)', () => {
-  it('l moves to the next offer and updates the counter', async () => {
+  it('n moves to the next offer and updates the counter', async () => {
     insertOffer({ title: 'A', postedAt: '2026-07-22' });
     insertOffer({ title: 'B', postedAt: '2026-07-21' });
     insertOffer({ title: 'C', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(render()).toContain('A');
     expect(render()).toContain('[1/3]');
     await press('n');
@@ -404,27 +400,27 @@ describe('browse (navigation)', () => {
     expect(render()).toContain('[3/3]');
   });
 
-  it('l at the last offer does not advance past the end', async () => {
+  it('n at the last offer does not advance past the end', async () => {
     insertOffer({ title: 'Only', postedAt: '2026-07-21' });
-    await browse(db);
+    browse(db, tuiState.tui);
     await press('n');
     expect(render()).toContain('Only');
     expect(render()).toContain('[1/1]');
   });
 
-  it('h at the first offer does not move backward', async () => {
+  it('p at the first offer does not move backward', async () => {
     insertOffer({ title: 'First', postedAt: '2026-07-21' });
     insertOffer({ title: 'Second', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     await press('p');
     expect(render()).toContain('First');
     expect(render()).toContain('[1/2]');
   });
 
-  it('h moves backward after an l', async () => {
+  it('p moves backward after an n', async () => {
     insertOffer({ title: 'A', postedAt: '2026-07-21' });
     insertOffer({ title: 'B', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     await press('n');
     expect(render()).toContain('B');
     await press('p');
@@ -435,7 +431,7 @@ describe('browse (navigation)', () => {
   it('unknown keys cause no movement or refetch', async () => {
     insertOffer({ title: 'A', postedAt: '2026-07-21' });
     insertOffer({ title: 'B', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     const before = render();
     await press('x');
     expect(render()).toBe(before);
@@ -445,7 +441,7 @@ describe('browse (navigation)', () => {
 describe('browse (open link)', () => {
   it('o opens the current offer link via spawnSync open', async () => {
     const link = insertOffer({ title: 'X' });
-    await browse(db);
+    browse(db, tuiState.tui);
     await press('o');
     expect(mockedSpawnSync).toHaveBeenCalledWith('open', [link], {
       stdio: 'ignore',
@@ -453,11 +449,10 @@ describe('browse (open link)', () => {
   });
 
   it('o on an offer with falsy link does not call spawnSync', async () => {
-    // forge an offer with empty link by direct insert
     db.prepare(
       `INSERT INTO offers (link, source, title, company, savedAt) VALUES (?, 'linkedin', 'T', 'C', '2026-07-20')`,
     ).run('');
-    await browse(db);
+    browse(db, tuiState.tui);
     mockedSpawnSync.mockClear();
     await press('o');
     expect(mockedSpawnSync).not.toHaveBeenCalled();
@@ -469,7 +464,7 @@ describe('browse (hide current)', () => {
     insertOffer({ title: 'A', link: 'l1', postedAt: '2026-07-22' });
     insertOffer({ title: 'B', link: 'l2', postedAt: '2026-07-21' });
     insertOffer({ title: 'C', link: 'l3', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(render()).toContain('A');
     await press('m');
     expect(render()).not.toContain('A');
@@ -480,7 +475,7 @@ describe('browse (hide current)', () => {
   it('m on the last offer adjusts the index rather than going out of range', async () => {
     insertOffer({ title: 'A', postedAt: '2026-07-21' });
     insertOffer({ title: 'B', postedAt: '2026-07-20' });
-    await browse(db);
+    browse(db, tuiState.tui);
     await press('n');
     expect(render()).toContain('B');
     await press('m');
@@ -490,66 +485,69 @@ describe('browse (hide current)', () => {
 
   it('m on the only offer triggers quit', async () => {
     insertOffer({ title: 'Lonely' });
-    await browse(db);
-    expect(mockState.quitCalled).toBe(false);
+    browse(db, tuiState.tui);
+    expect(tuiState.tui.quitCalled).toBe(false);
     await press('m');
-    expect(mockState.quitCalled).toBe(true);
-    expect(mockState.cleaned).toBe(true);
+    expect(tuiState.tui.quitCalled).toBe(true);
+    expect(tuiState.tui.cleaned).toBe(true);
   });
 });
 
 describe('browse (quit)', () => {
   it('q triggers cleanup', async () => {
     insertOffer();
-    await browse(db);
-    mockState.keyHandler!('q');
+    browse(db, tuiState.tui);
+    const kh = tuiState.getKeyHandler();
+    kh!('q');
     await flush();
-    expect(mockState.cleaned).toBe(true);
-    expect(mockState.quitCalled).toBe(true);
+    expect(tuiState.tui.cleaned).toBe(true);
+    expect(tuiState.tui.quitCalled).toBe(true);
   });
 
   it('Ctrl-C (\\x03) triggers cleanup, same as q', async () => {
     insertOffer();
-    await browse(db);
-    mockState.keyHandler!('\x03');
+    browse(db, tuiState.tui);
+    const kh = tuiState.getKeyHandler();
+    kh!('\x03');
     await flush();
-    expect(mockState.quitCalled).toBe(true);
+    expect(tuiState.tui.quitCalled).toBe(true);
   });
 
   it('q also runs registered cleanup callbacks (db close)', async () => {
     insertOffer();
     const closeSpy = vi.spyOn(db, 'close');
-    await browse(db);
-    mockState.keyHandler!('q');
+    browse(db, tuiState.tui);
+    const kh = tuiState.getKeyHandler();
+    kh!('q');
     await flush();
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('browse (returned cleanup)', () => {
-  it('returns a function that fires registered cleanup callbacks (db close)', async () => {
+  it('returns a function that fires registered cleanup callbacks (db close)', () => {
     insertOffer();
     const closeSpy = vi.spyOn(db, 'close');
-    const cleanup = await browse(db);
+    const cleanup = browse(db, tuiState.tui);
     cleanup();
     expect(closeSpy).toHaveBeenCalledTimes(1);
-    expect(mockState.cleaned).toBe(true);
+    expect(tuiState.tui.cleaned).toBe(true);
   });
 
-  it('does not close the db simply by entering browse — only on cleanup', async () => {
+  it('does not close the db simply by entering browse — only on cleanup', () => {
     insertOffer();
     const closeSpy = vi.spyOn(db, 'close');
-    await browse(db);
+    browse(db, tuiState.tui);
     expect(closeSpy).not.toHaveBeenCalled();
   });
 
-  it('double-calling the returned cleanup is safe (callbacks cleared after first)', async () => {
+  it('double-calling the returned cleanup is safe (callbacks cleared after first)', () => {
     insertOffer();
-    const cleanup = await browse(db);
+    const cleanup = browse(db, tuiState.tui);
     cleanup();
-    const callsBefore = mockState.cleaned;
+    const callsBefore = tuiState.tui.cleaned;
     expect(() => cleanup()).not.toThrow();
-    expect(mockState.cleaned).toBe(callsBefore);
+    expect(tuiState.tui.cleaned).toBe(callsBefore);
   });
 });
 
@@ -557,8 +555,6 @@ describe('browse (description trimming)', () => {
   it('shows "... (more)" when description does not fit in the available rows', async () => {
     insertOffer({ source: 'linkedin' });
 
-    // rows=24 leaves ~15 available rows for the description; 50 paragraphs
-    // definitely overflow.
     Object.defineProperty(process.stdout, 'rows', {
       configurable: true,
       value: 24,
@@ -568,12 +564,12 @@ describe('browse (description trimming)', () => {
       value: 80,
     });
 
-    await browse(db);
+    browse(db, tuiState.tui);
     const long = Array.from(
       { length: 50 },
       (_, i) => `Paragraph ${i + 1}.`,
     ).join('\n');
-    mockState.pendingDesc[0]!.resolve(long);
+    tuiState.pendingDesc[0]!.resolve(long);
     await flush();
     const out = render();
     expect(out).toContain('... (more)');
@@ -581,8 +577,8 @@ describe('browse (description trimming)', () => {
 
   it('does not show "... (more)" when the description fits in the available rows', async () => {
     insertOffer({ source: 'linkedin' });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve('Short description.');
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve('Short description.');
     await flush();
     const out = render();
     expect(out).toContain('Short description.');
@@ -595,15 +591,14 @@ describe('browse (description trimming)', () => {
       configurable: true,
       value: 20,
     });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve(
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve(
       'a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no',
     );
     await flush();
     const out = render();
     expect(out).toContain('HeaderVisible');
     expect(out).toContain('[1/1]');
-    // header is rendered before any desc content
     const headIdx = out.indexOf('HeaderVisible');
     const moreIdx = out.indexOf('... (more)');
     expect(moreIdx).toBeGreaterThan(headIdx);
@@ -615,8 +610,8 @@ describe('browse (description trimming)', () => {
       configurable: true,
       value: 24,
     });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve(
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve(
       Array.from({ length: 200 })
         .map(() => 'x'.repeat(60))
         .join('\n'),
@@ -625,7 +620,6 @@ describe('browse (description trimming)', () => {
     const stripped = render().replace(/\x1b\[[0-9;]*m/g, '');
     const lines = stripped.split('\n');
     expect(lines.length).toBe(24);
-    // the help line is the very last rendered row (bottom of the screen)
     expect(lines[23]).toContain('[1/1]');
     expect(lines[23]).toContain('q=quit');
   });
@@ -636,11 +630,10 @@ describe('browse (description trimming)', () => {
       configurable: true,
       value: 1,
     });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve('first line\nsecond line');
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve('first line\nsecond line');
     await flush();
     const out = render();
-    // single line fallback shows the first non-empty desc line at most
     expect(out).toContain('first line');
     expect(out).not.toContain('second line');
   });
@@ -648,11 +641,7 @@ describe('browse (description trimming)', () => {
 
 describe('browse (terminal resize)', () => {
   it('respects process.stdout.columns for line wrapping when computing row count', async () => {
-    // Short link so the header doesn't itself wrap at narrow columns.
     insertOffer({ source: 'linkedin', link: 'short' });
-    // rows=16 cols=10 → header wraps to ~7 rows, footer to ~6 rows,
-    // avail = 16 - 7 - 6 - 1 = 2. A 30-char body wraps to 3 rows on
-    // a 10-col terminal → truncates and shows the more-marker.
     Object.defineProperty(process.stdout, 'rows', {
       configurable: true,
       value: 16,
@@ -661,15 +650,9 @@ describe('browse (terminal resize)', () => {
       configurable: true,
       value: 10,
     });
-    await browse(db);
-    mockState.pendingDesc[0]!.resolve('012345678901234567890123456789');
+    browse(db, tuiState.tui);
+    tuiState.pendingDesc[0]!.resolve('012345678901234567890123456789');
     await flush();
     expect(render()).toContain('... (more)');
   });
 });
-
-// Import browse dynamically so mocks apply before the module body runs.
-async function browse(db: Db): Promise<() => void> {
-  const mod = await import('./browse.ts');
-  return mod.browse(db);
-}
