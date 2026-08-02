@@ -137,7 +137,7 @@ export function browse(db: Db): () => void {
     const cols = process.stdout.columns ?? 80;
     const headerRows = header.reduce((n, l) => n + visualRows(l, cols), 0);
     const footerRows = footer.reduce((n, l) => n + visualRows(l, cols), 0);
-    const avail = rows - headerRows - footerRows - 1;
+    const avail = rows - headerRows - footerRows;
     const moreMarker = `${DIM}... (more)${RESET}`;
     const moreRows = visualRows(moreMarker, cols);
 
@@ -174,7 +174,7 @@ export function browse(db: Db): () => void {
 
     const lines = [...header, ...trimmed, ...footer];
     tui.clear();
-    tui.write(lines.join('\n') + '\n');
+    tui.write(lines.join('\n'));
     process.stdout.write(`${rows}, ${cols}`);
   }
 

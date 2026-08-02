@@ -593,7 +593,7 @@ describe('browse (description trimming)', () => {
     insertOffer({ title: 'HeaderVisible', source: 'linkedin' });
     Object.defineProperty(process.stdout, 'rows', {
       configurable: true,
-      value: 24,
+      value: 20,
     });
     await browse(db);
     mockState.pendingDesc[0]!.resolve(
