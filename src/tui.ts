@@ -97,26 +97,14 @@ export class TuiClient implements Tui {
     moreMarker?: string;
   }): string[] {
     const { rows, cols } = this.#getSize();
-    const headerRows = sections.header.reduce(
-      (n, l) => n + this.#visualRows(l, cols),
-      0,
-    );
-    const footerRows = sections.footer.reduce(
-      (n, l) => n + this.#visualRows(l, cols),
-      0,
-    );
+    const headerRows = this.#rowsOf(sections.header, cols);
+    const footerRows = this.#rowsOf(sections.footer, cols);
     const avail = rows - headerRows - footerRows;
     const marker = sections.moreMarker ?? '';
 
-    let fitted: string[];
-    if (avail <= 0) {
-      fitted = [sections.body.find((l) => l.length > 0) ?? ''];
-    } else {
-      fitted = this.#fitLines(sections.body, avail, marker);
-    }
+    const fitted = this.#fitLines(sections.body, avail, cols, marker);
 
-    const used = headerRows + fitted.reduce((n, l) => n + this.#visualRows(l, cols), 0) + footerRows;
-    const pad = rows - used;
+    const pad = avail - this.#rowsOf(fitted, cols);
     if (pad > 0) {
       fitted.push(...Array<string>(pad).fill(''));
     }
@@ -174,52 +162,45 @@ export class TuiClient implements Tui {
     };
   }
 
-  #visualRows(line: string, cols?: number): number {
+  #rowsOf(lines: string[], cols: number): number {
+    return lines.reduce((n, l) => n + this.#visualRows(l, cols), 0);
+  }
+
+  #visualRows(line: string, cols: number): number {
     const w = line.replace(ANSI_RE, '').length;
-    const c = cols ?? this.#getSize().cols;
-    return w === 0 ? 1 : Math.max(1, Math.ceil(w / c));
+    return w === 0 ? 1 : Math.max(1, Math.ceil(w / cols));
   }
 
   #fitLines(
     lines: string[],
     availableRows: number,
+    cols: number,
     moreMarker: string = '',
   ): string[] {
-    if (availableRows <= 0) return [];
-
-    const cols = this.#getSize().cols;
-    const moreRows = moreMarker ? this.#visualRows(moreMarker, cols) : 0;
-
-    // Longest prefix that fits within availableRows.
-    const prefix: string[] = [];
-    let used = 0;
-    for (const line of lines) {
-      const r = this.#visualRows(line, cols);
-      if (used + r > availableRows) break;
-      prefix.push(line);
-      used += r;
+    // No room for content: at least show the first non-empty line.
+    if (availableRows <= 0) {
+      return [lines.find((l) => l.length > 0) ?? ''];
     }
 
-    // Nothing was cut: show the whole body (fitView pads to fill the terminal).
-    if (prefix.length === lines.length) return prefix;
+    // Everything fits: show the whole body (fitView pads to fill the terminal).
+    if (this.#rowsOf(lines, cols) <= availableRows) return lines;
 
-    // Cut off without a marker: show the prefix as-is.
-    if (!moreMarker) return prefix;
+    const moreRows = moreMarker ? this.#visualRows(moreMarker, cols) : 0;
 
     // The marker must fit on its own; if not, show nothing.
     if (moreRows > availableRows) return [];
 
-    // Reserve rows for the marker and drop trailing lines to make room.
-    const budget = availableRows - moreRows;
+    // Reserve rows for the marker, or use all rows when there is none.
+    const budget = moreMarker ? availableRows - moreRows : availableRows;
     const fitted: string[] = [];
-    let fittedUsed = 0;
-    for (const line of prefix) {
+    let used = 0;
+    for (const line of lines) {
       const r = this.#visualRows(line, cols);
-      if (fittedUsed + r > budget) break;
+      if (used + r > budget) break;
       fitted.push(line);
-      fittedUsed += r;
+      used += r;
     }
-    fitted.push(moreMarker);
+    if (moreMarker) fitted.push(moreMarker);
     return fitted;
   }
 }
