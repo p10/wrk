@@ -185,40 +185,41 @@ export class TuiClient implements Tui {
     availableRows: number,
     moreMarker: string = '',
   ): string[] {
-    const cols = this.#getSize().cols;
-
     if (availableRows <= 0) return [];
 
+    const cols = this.#getSize().cols;
     const moreRows = moreMarker ? this.#visualRows(moreMarker, cols) : 0;
-    const result: string[] = [];
-    let used = 0;
-    let truncated = false;
 
+    // Longest prefix that fits within availableRows.
+    const prefix: string[] = [];
+    let used = 0;
     for (const line of lines) {
       const r = this.#visualRows(line, cols);
-      if (used + r > availableRows) {
-        truncated = true;
-        break;
-      }
-      result.push(line);
+      if (used + r > availableRows) break;
+      prefix.push(line);
       used += r;
     }
 
-    if (!truncated) {
-      while (used < availableRows) {
-        result.push('');
-        used += 1;
-      }
-    } else if (moreMarker) {
-      while (result.length > 0 && used + moreRows > availableRows) {
-        const last = result.pop()!;
-        used -= this.#visualRows(last, cols);
-      }
-      if (availableRows - used >= moreRows) {
-        result.push(moreMarker);
-      }
-    }
+    // Nothing was cut: show the whole body (fitView pads to fill the terminal).
+    if (prefix.length === lines.length) return prefix;
 
-    return result;
+    // Cut off without a marker: show the prefix as-is.
+    if (!moreMarker) return prefix;
+
+    // The marker must fit on its own; if not, show nothing.
+    if (moreRows > availableRows) return [];
+
+    // Reserve rows for the marker and drop trailing lines to make room.
+    const budget = availableRows - moreRows;
+    const fitted: string[] = [];
+    let fittedUsed = 0;
+    for (const line of prefix) {
+      const r = this.#visualRows(line, cols);
+      if (fittedUsed + r > budget) break;
+      fitted.push(line);
+      fittedUsed += r;
+    }
+    fitted.push(moreMarker);
+    return fitted;
   }
 }
