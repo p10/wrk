@@ -13,19 +13,19 @@ export { DIM, GREEN, RESET };
 
 export interface Tui {
   enter(): void;
-  clear(): void;
-  write(text: string): void;
   hideCursor(): void;
   onKey(handler: (key: string) => void): void;
   onCleanup(callback: () => void): void;
-  cleanup(): void;
-  quit(code?: number): void;
+  clear(): void;
+  write(text: string): void;
   fitView(sections: {
     header: string[];
     body: string[];
     footer: string[];
     moreMarker?: string;
   }): string[];
+  cleanup(): void;
+  quit(code?: number): void;
 }
 
 export class TuiClient implements Tui {
@@ -43,25 +43,8 @@ export class TuiClient implements Tui {
     process.stdout.write(`${ENTER_ALT_SCREEN}${CLEAR_SCREEN}`);
   }
 
-  #exit(): void {
-    if (process.stdout.isTTY !== true) return;
-    process.stdout.write(EXIT_ALT_SCREEN);
-  }
-
-  clear(): void {
-    process.stdout.write(CLEAR_SCREEN);
-  }
-
-  write(text: string): void {
-    process.stdout.write(text);
-  }
-
   hideCursor(): void {
     process.stdout.write(HIDE_CURSOR);
-  }
-
-  #showCursor(): void {
-    process.stdout.write(SHOW_CURSOR);
   }
 
   onKey(handler: (key: string) => void): void {
@@ -77,6 +60,48 @@ export class TuiClient implements Tui {
     this.#cleanupCallbacks.push(callback);
   }
 
+  clear(): void {
+    process.stdout.write(CLEAR_SCREEN);
+  }
+
+  write(text: string): void {
+    process.stdout.write(text);
+  }
+
+  fitView(sections: {
+    header: string[];
+    body: string[];
+    footer: string[];
+    moreMarker?: string;
+  }): string[] {
+    const { rows, cols } = this.#getSize();
+    const headerRows = sections.header.reduce(
+      (n, l) => n + this.#visualRows(l, cols),
+      0,
+    );
+    const footerRows = sections.footer.reduce(
+      (n, l) => n + this.#visualRows(l, cols),
+      0,
+    );
+    const avail = rows - headerRows - footerRows;
+    const marker = sections.moreMarker ?? '';
+
+    let fitted: string[];
+    if (avail <= 0) {
+      fitted = [sections.body.find((l) => l.length > 0) ?? ''];
+    } else {
+      fitted = this.#fitLines(sections.body, avail, marker);
+    }
+
+    const used = headerRows + fitted.reduce((n, l) => n + this.#visualRows(l, cols), 0) + footerRows;
+    const pad = rows - used;
+    if (pad > 0) {
+      fitted.push(...Array<string>(pad).fill(''));
+    }
+
+    return [...sections.header, ...fitted, ...sections.footer];
+  }
+
   cleanup(): void {
     for (const callback of this.#cleanupCallbacks) callback();
     this.#cleanupCallbacks.length = 0;
@@ -89,6 +114,35 @@ export class TuiClient implements Tui {
   quit(code: number = 0): void {
     this.cleanup();
     process.exit(code);
+  }
+
+  #installSignals(): void {
+    if (this.#signalsInstalled) return;
+    this.#signalsInstalled = true;
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as NodeJS.Signals[]) {
+      process.on(signal, () => this.quit(0));
+    }
+  }
+
+  #exit(): void {
+    if (process.stdout.isTTY !== true) return;
+    process.stdout.write(EXIT_ALT_SCREEN);
+  }
+
+  #showCursor(): void {
+    process.stdout.write(SHOW_CURSOR);
+  }
+
+  #restoreStdin(): void {
+    if (this.#wrap) {
+      process.stdin.removeListener('data', this.#wrap);
+      this.#wrap = undefined;
+    }
+    if (this.#originalIsRaw !== undefined && process.stdin.isTTY) {
+      process.stdin.setRawMode(this.#originalIsRaw);
+      this.#originalIsRaw = undefined;
+    }
+    process.stdin.pause();
   }
 
   #getSize(): { rows: number; cols: number } {
@@ -144,59 +198,5 @@ export class TuiClient implements Tui {
     }
 
     return result;
-  }
-
-  fitView(sections: {
-    header: string[];
-    body: string[];
-    footer: string[];
-    moreMarker?: string;
-  }): string[] {
-    const { rows, cols } = this.#getSize();
-    const headerRows = sections.header.reduce(
-      (n, l) => n + this.#visualRows(l, cols),
-      0,
-    );
-    const footerRows = sections.footer.reduce(
-      (n, l) => n + this.#visualRows(l, cols),
-      0,
-    );
-    const avail = rows - headerRows - footerRows;
-    const marker = sections.moreMarker ?? '';
-
-    let fitted: string[];
-    if (avail <= 0) {
-      fitted = [sections.body.find((l) => l.length > 0) ?? ''];
-    } else {
-      fitted = this.#fitLines(sections.body, avail, marker);
-    }
-
-    const used = headerRows + fitted.reduce((n, l) => n + this.#visualRows(l, cols), 0) + footerRows;
-    const pad = rows - used;
-    if (pad > 0) {
-      fitted.push(...Array<string>(pad).fill(''));
-    }
-
-    return [...sections.header, ...fitted, ...sections.footer];
-  }
-
-  #restoreStdin(): void {
-    if (this.#wrap) {
-      process.stdin.removeListener('data', this.#wrap);
-      this.#wrap = undefined;
-    }
-    if (this.#originalIsRaw !== undefined && process.stdin.isTTY) {
-      process.stdin.setRawMode(this.#originalIsRaw);
-      this.#originalIsRaw = undefined;
-    }
-    process.stdin.pause();
-  }
-
-  #installSignals(): void {
-    if (this.#signalsInstalled) return;
-    this.#signalsInstalled = true;
-    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as NodeJS.Signals[]) {
-      process.on(signal, () => this.quit(0));
-    }
   }
 }
