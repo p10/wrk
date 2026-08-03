@@ -53,6 +53,13 @@ function makeTuiState() {
     reject: (e: unknown) => void;
   }> = [];
 
+  const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
+  function visualRows(line: string, cols: number): number {
+    const w = line.replace(ANSI_RE, '').length;
+    return w === 0 ? 1 : Math.max(1, Math.ceil(w / cols));
+  }
+
   const tui = {
     writes,
     cleaned: false,
@@ -82,6 +89,52 @@ function makeTuiState() {
       quitCalled = true;
     },
     exit(): void {},
+    getSize(): { rows: number; cols: number } {
+      return {
+        rows: process.stdout.rows ?? 24,
+        cols: process.stdout.columns ?? 80,
+      };
+    },
+    visualRows(line: string, cols?: number): number {
+      return visualRows(line, cols ?? 80);
+    },
+    fitLines(lines: string[], availableRows: number, moreMarker: string = ''): string[] {
+      const cols = (process.stdout.columns ?? 80) as number;
+
+      if (availableRows <= 0) return [];
+
+      const moreRows = moreMarker ? visualRows(moreMarker, cols) : 0;
+      const result: string[] = [];
+      let used = 0;
+      let truncated = false;
+
+      for (const line of lines) {
+        const r = visualRows(line, cols);
+        if (used + r > availableRows) {
+          truncated = true;
+          break;
+        }
+        result.push(line);
+        used += r;
+      }
+
+      if (!truncated) {
+        while (used < availableRows) {
+          result.push('');
+          used += 1;
+        }
+      } else if (moreMarker) {
+        while (result.length > 0 && used + moreRows > availableRows) {
+          const last = result.pop()!;
+          used -= visualRows(last, cols);
+        }
+        if (availableRows - used >= moreRows) {
+          result.push(moreMarker);
+        }
+      }
+
+      return result;
+    },
   };
 
   Object.defineProperty(tui, 'cleaned', {

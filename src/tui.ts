@@ -7,6 +7,8 @@ const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 const GREEN = '\x1b[32m';
 
+const ANSI_RE = /\x1b\[[0-9;]*m/g;
+
 export { DIM, GREEN, RESET };
 
 export interface Tui {
@@ -20,6 +22,13 @@ export interface Tui {
   onCleanup(callback: () => void): void;
   cleanup(): void;
   quit(code?: number): void;
+  getSize(): { rows: number; cols: number };
+  visualRows(line: string, cols?: number): number;
+  fitLines(
+    lines: string[],
+    availableRows: number,
+    moreMarker?: string,
+  ): string[];
 }
 
 export class TuiClient implements Tui {
@@ -83,6 +92,61 @@ export class TuiClient implements Tui {
   quit(code: number = 0): void {
     this.cleanup();
     process.exit(code);
+  }
+
+  getSize(): { rows: number; cols: number } {
+    return {
+      rows: process.stdout.rows ?? 24,
+      cols: process.stdout.columns ?? 80,
+    };
+  }
+
+  visualRows(line: string, cols?: number): number {
+    const w = line.replace(ANSI_RE, '').length;
+    const c = cols ?? this.getSize().cols;
+    return w === 0 ? 1 : Math.max(1, Math.ceil(w / c));
+  }
+
+  fitLines(
+    lines: string[],
+    availableRows: number,
+    moreMarker: string = '',
+  ): string[] {
+    const cols = this.getSize().cols;
+
+    if (availableRows <= 0) return [];
+
+    const moreRows = moreMarker ? this.visualRows(moreMarker, cols) : 0;
+    const result: string[] = [];
+    let used = 0;
+    let truncated = false;
+
+    for (const line of lines) {
+      const r = this.visualRows(line, cols);
+      if (used + r > availableRows) {
+        truncated = true;
+        break;
+      }
+      result.push(line);
+      used += r;
+    }
+
+    if (!truncated) {
+      while (used < availableRows) {
+        result.push('');
+        used += 1;
+      }
+    } else if (moreMarker) {
+      while (result.length > 0 && used + moreRows > availableRows) {
+        const last = result.pop()!;
+        used -= this.visualRows(last, cols);
+      }
+      if (availableRows - used >= moreRows) {
+        result.push(moreMarker);
+      }
+    }
+
+    return result;
   }
 
   #restoreStdin(): void {

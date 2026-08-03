@@ -132,64 +132,29 @@ export function browse(db: Db, tui: Tui): () => void {
       `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
     ];
 
-    const rows = process.stdout.rows ?? 24;
-    const cols = process.stdout.columns ?? 80;
-    const headerRows = header.reduce((n, l) => n + visualRows(l, cols), 0);
-    const footerRows = footer.reduce((n, l) => n + visualRows(l, cols), 0);
+    const { rows, cols } = tui.getSize();
+    const headerRows = header.reduce((n, l) => n + tui.visualRows(l, cols), 0);
+    const footerRows = footer.reduce((n, l) => n + tui.visualRows(l, cols), 0);
     const avail = rows - headerRows - footerRows;
     const moreMarker = `${DIM}... (more)${RESET}`;
-    const moreRows = visualRows(moreMarker, cols);
 
-    let trimmed: string[] = [];
+    let trimmed: string[];
     if (avail <= 0) {
       trimmed = [descLines.find((l) => l.length > 0) ?? ''];
     } else {
-      let used = 0;
-      let truncated = false;
-      for (const line of descLines) {
-        const r = visualRows(line, cols);
-        if (used + r > avail) {
-          truncated = true;
-          break;
-        }
-        trimmed.push(line);
-        used += r;
-      }
-      if (!truncated) {
-        while (used < avail) {
-          trimmed.push('');
-          used += 1;
-        }
-      } else {
-        while (trimmed.length > 0 && used + moreRows > avail) {
-          const last = trimmed.pop() as string;
-          used -= visualRows(last, cols);
-        }
-        if (avail - used >= moreRows) {
-          trimmed.push(moreMarker);
-        }
-      }
+      trimmed = tui.fitLines(descLines, avail, moreMarker);
     }
 
-    const usedRows = [...header, ...trimmed, ...footer].reduce(
-      (n, l) => n + visualRows(l, cols),
-      0,
-    );
+    const usedRows = headerRows + trimmed.reduce((n, l) => n + tui.visualRows(l, cols), 0) + footerRows;
     const pad = rows - usedRows;
     if (pad > 0) {
       trimmed.push(...Array<string>(pad).fill(''));
     }
+
     const lines = [...header, ...trimmed, ...footer];
     tui.clear();
     tui.write(lines.join('\n'));
   }
 
   return () => tui.cleanup();
-}
-
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
-
-function visualRows(line: string, cols: number): number {
-  const w = line.replace(ANSI_RE, '').length;
-  return w === 0 ? 1 : Math.max(1, Math.ceil(w / cols));
 }

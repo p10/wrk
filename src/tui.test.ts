@@ -351,6 +351,176 @@ describe('Tui (signal installation)', () => {
   });
 });
 
+describe('Tui (getSize)', () => {
+  it('returns actual stdout dimensions when available', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'rows', {
+      configurable: true,
+      value: 50,
+    });
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 120,
+    });
+    const size = tui.getSize();
+    expect(size.rows).toBe(50);
+    expect(size.cols).toBe(120);
+  });
+
+  it('falls back to 24 rows when process.stdout.rows is undefined', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'rows', {
+      configurable: true,
+      value: undefined,
+    });
+    const size = tui.getSize();
+    expect(size.rows).toBe(24);
+  });
+
+  it('falls back to 80 columns when process.stdout.columns is undefined', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: undefined,
+    });
+    const size = tui.getSize();
+    expect(size.cols).toBe(80);
+  });
+});
+
+describe('Tui (visualRows)', () => {
+  it('returns 1 for an empty string', () => {
+    const tui = new TuiClient();
+    expect(tui.visualRows('', 80)).toBe(1);
+  });
+
+  it('returns 1 for a single character', () => {
+    const tui = new TuiClient();
+    expect(tui.visualRows('x', 80)).toBe(1);
+  });
+
+  it('returns 1 when line length equals cols', () => {
+    const tui = new TuiClient();
+    expect(tui.visualRows('0123456789', 10)).toBe(1);
+  });
+
+  it('returns 2 when line is one character longer than cols', () => {
+    const tui = new TuiClient();
+    expect(tui.visualRows('0123456789x', 10)).toBe(2);
+  });
+
+  it('returns ceil(len/cols) for long lines', () => {
+    const tui = new TuiClient();
+    expect(tui.visualRows('01234567890123456789', 10)).toBe(2);
+    expect(tui.visualRows('012345678901234567890', 10)).toBe(3);
+    expect(tui.visualRows('0123456789', 5)).toBe(2);
+  });
+
+  it('strips ANSI codes before measuring', () => {
+    const tui = new TuiClient();
+    const bare = 'hello';
+    const styled = `${DIM}hello${RESET}`;
+    expect(tui.visualRows(bare, 80)).toBe(tui.visualRows(styled, 80));
+  });
+
+  it('uses getSize().cols when cols argument is omitted', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 40,
+    });
+    expect(tui.visualRows('x'.repeat(41))).toBe(2);
+  });
+});
+
+describe('Tui (fitLines)', () => {
+  const longMarker = `${DIM}... (more)${RESET}`;
+
+  it('returns empty array when availableRows <= 0', () => {
+    const tui = new TuiClient();
+    expect(tui.fitLines(['a', 'b'], 0)).toEqual([]);
+    expect(tui.fitLines(['a', 'b'], -1)).toEqual([]);
+  });
+
+  it('returns all lines padded with empty strings when they fit', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 80,
+    });
+    const result = tui.fitLines(['a', 'b', 'c'], 5);
+    expect(result).toEqual(['a', 'b', 'c', '', '']);
+  });
+
+  it('returns only the lines that fit, no moreMarker when moreMarker is empty', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 80,
+    });
+    const result = tui.fitLines(['a', 'b', 'c', 'd', 'e'], 3, '');
+    expect(result).toEqual(['a', 'b', 'c']);
+  });
+
+  it('truncates and appends moreMarker when lines exceed availableRows', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 80,
+    });
+    const result = tui.fitLines(
+      ['a', 'b', 'c', 'd', 'e'],
+      3,
+      '<more>',
+    );
+    expect(result).toEqual(['a', 'b', '<more>']);
+  });
+
+  it('pops lines to make room for moreMarker when marker spans multiple visual rows', () => {
+    const tui = new TuiClient();
+    // use a narrow column so the marker wraps to 2 rows
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 4,
+    });
+    // "XY" is 2 chars -> 1 row. moreMarker "..." is 3 chars with cols=4 -> 1 row.
+    // But let's make cols=4 and use a 5-char marker -> 2 rows
+    const result = tui.fitLines(
+      ['a', 'b', 'c', 'd', 'e'],
+      4,
+      '12345', // 5 chars at cols=4 -> 2 visual rows
+    );
+    expect(result).toEqual(['a', 'b', '12345']);
+  });
+
+  it('drops moreMarker entirely if it does not fit even after popping all lines', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 2,
+    });
+    // marker "..." is 3 chars at cols=2 -> 2 visual rows, available=1 -> can't fit
+    const result = tui.fitLines(['a', 'b', 'c'], 1, '...');
+    expect(result).toEqual([]);
+  });
+
+  it('handles a single line that is wider than available rows', () => {
+    const tui = new TuiClient();
+    Object.defineProperty(process.stdout, 'columns', {
+      configurable: true,
+      value: 10,
+    });
+    // 'x'.repeat(25) at cols=10 -> 3 rows.
+    // availableRows=4 -> fits with 1 padding row. availableRows=2 -> fit marker if possible.
+    const fits = tui.fitLines(['x'.repeat(25)], 4);
+    expect(fits).toEqual(['x'.repeat(25), '']);
+
+    const truncated = tui.fitLines(['x'.repeat(25)], 2, '<m>');
+    // line is 3 rows, doesn't fit in 2. marker '<m>' (3 chars, 1 row) fits.
+    expect(truncated).toEqual(['<m>']);
+  });
+});
+
 describe('Tui (restoration safety)', () => {
   it('cleanup() called twice is safe: second invocation still restores stdin cleanly', () => {
     const tui = new TuiClient();
