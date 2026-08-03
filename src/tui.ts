@@ -11,6 +11,26 @@ const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 export { DIM, GREEN, RESET };
 
+export interface ProcessLike {
+  stdout: {
+    isTTY?: boolean;
+    rows?: number;
+    columns?: number;
+    write(text: string): boolean;
+  };
+  stdin: {
+    isTTY?: boolean;
+    isRaw?: boolean;
+    setRawMode(mode: boolean): void;
+    resume(): void;
+    pause(): void;
+    on(event: string, listener: (data: Buffer) => void): void;
+    removeListener(event: string, listener: (data: Buffer) => void): void;
+  };
+  exit(code?: number): never;
+  on(event: string, listener: () => void): void;
+}
+
 export interface Tui {
   enter(): void;
   hideCursor(): void;
@@ -29,31 +49,33 @@ export interface Tui {
 }
 
 export class TuiClient implements Tui {
+  #process: ProcessLike;
   #originalIsRaw?: boolean;
   #wrap?: (data: Buffer) => void;
   #cleanupCallbacks: Array<() => void> = [];
   #signalsInstalled = false;
 
-  constructor() {
+  constructor(processLike: ProcessLike = process) {
+    this.#process = processLike;
     this.#installSignals();
   }
 
   enter(): void {
-    if (process.stdout.isTTY !== true) return;
-    process.stdout.write(`${ENTER_ALT_SCREEN}${CLEAR_SCREEN}`);
+    if (this.#process.stdout.isTTY !== true) return;
+    this.#process.stdout.write(`${ENTER_ALT_SCREEN}${CLEAR_SCREEN}`);
   }
 
   hideCursor(): void {
-    process.stdout.write(HIDE_CURSOR);
+    this.#process.stdout.write(HIDE_CURSOR);
   }
 
   onKey(handler: (key: string) => void): void {
-    if (!process.stdin.isTTY) return;
-    this.#originalIsRaw = process.stdin.isRaw;
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
+    if (!this.#process.stdin.isTTY) return;
+    this.#originalIsRaw = this.#process.stdin.isRaw;
+    this.#process.stdin.setRawMode(true);
+    this.#process.stdin.resume();
     this.#wrap = (data: Buffer) => handler(data.toString());
-    process.stdin.on('data', this.#wrap);
+    this.#process.stdin.on('data', this.#wrap);
   }
 
   onCleanup(callback: () => void): void {
@@ -61,11 +83,11 @@ export class TuiClient implements Tui {
   }
 
   clear(): void {
-    process.stdout.write(CLEAR_SCREEN);
+    this.#process.stdout.write(CLEAR_SCREEN);
   }
 
   write(text: string): void {
-    process.stdout.write(text);
+    this.#process.stdout.write(text);
   }
 
   fitView(sections: {
@@ -108,47 +130,47 @@ export class TuiClient implements Tui {
     this.#restoreStdin();
     this.#exit();
     this.#showCursor();
-    process.stdout.write(RESET);
+    this.#process.stdout.write(RESET);
   }
 
   quit(code: number = 0): void {
     this.cleanup();
-    process.exit(code);
+    this.#process.exit(code);
   }
 
   #installSignals(): void {
     if (this.#signalsInstalled) return;
     this.#signalsInstalled = true;
-    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as NodeJS.Signals[]) {
-      process.on(signal, () => this.quit(0));
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+      this.#process.on(signal, () => this.quit(0));
     }
   }
 
   #exit(): void {
-    if (process.stdout.isTTY !== true) return;
-    process.stdout.write(EXIT_ALT_SCREEN);
+    if (this.#process.stdout.isTTY !== true) return;
+    this.#process.stdout.write(EXIT_ALT_SCREEN);
   }
 
   #showCursor(): void {
-    process.stdout.write(SHOW_CURSOR);
+    this.#process.stdout.write(SHOW_CURSOR);
   }
 
   #restoreStdin(): void {
     if (this.#wrap) {
-      process.stdin.removeListener('data', this.#wrap);
+      this.#process.stdin.removeListener('data', this.#wrap);
       this.#wrap = undefined;
     }
-    if (this.#originalIsRaw !== undefined && process.stdin.isTTY) {
-      process.stdin.setRawMode(this.#originalIsRaw);
+    if (this.#originalIsRaw !== undefined && this.#process.stdin.isTTY) {
+      this.#process.stdin.setRawMode(this.#originalIsRaw);
       this.#originalIsRaw = undefined;
     }
-    process.stdin.pause();
+    this.#process.stdin.pause();
   }
 
   #getSize(): { rows: number; cols: number } {
     return {
-      rows: process.stdout.rows ?? 24,
-      cols: process.stdout.columns ?? 80,
+      rows: this.#process.stdout.rows ?? 24,
+      cols: this.#process.stdout.columns ?? 80,
     };
   }
 
