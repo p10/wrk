@@ -132,26 +132,12 @@ export function browse(db: Db, tui: Tui): () => void {
       `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
     ];
 
-    const { rows, cols } = tui.getSize();
-    const headerRows = header.reduce((n, l) => n + tui.visualRows(l, cols), 0);
-    const footerRows = footer.reduce((n, l) => n + tui.visualRows(l, cols), 0);
-    const avail = rows - headerRows - footerRows;
-    const moreMarker = `${DIM}... (more)${RESET}`;
-
-    let trimmed: string[];
-    if (avail <= 0) {
-      trimmed = [descLines.find((l) => l.length > 0) ?? ''];
-    } else {
-      trimmed = tui.fitLines(descLines, avail, moreMarker);
-    }
-
-    const usedRows = headerRows + trimmed.reduce((n, l) => n + tui.visualRows(l, cols), 0) + footerRows;
-    const pad = rows - usedRows;
-    if (pad > 0) {
-      trimmed.push(...Array<string>(pad).fill(''));
-    }
-
-    const lines = [...header, ...trimmed, ...footer];
+    const lines = tui.fitView({
+      header,
+      body: descLines,
+      footer,
+      moreMarker: `${DIM}... (more)${RESET}`,
+    });
     tui.clear();
     tui.write(lines.join('\n'));
   }

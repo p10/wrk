@@ -13,22 +13,19 @@ export { DIM, GREEN, RESET };
 
 export interface Tui {
   enter(): void;
-  exit(): void;
   clear(): void;
   write(text: string): void;
   hideCursor(): void;
-  showCursor(): void;
   onKey(handler: (key: string) => void): void;
   onCleanup(callback: () => void): void;
   cleanup(): void;
   quit(code?: number): void;
-  getSize(): { rows: number; cols: number };
-  visualRows(line: string, cols?: number): number;
-  fitLines(
-    lines: string[],
-    availableRows: number,
-    moreMarker?: string,
-  ): string[];
+  fitView(sections: {
+    header: string[];
+    body: string[];
+    footer: string[];
+    moreMarker?: string;
+  }): string[];
 }
 
 export class TuiClient implements Tui {
@@ -46,7 +43,7 @@ export class TuiClient implements Tui {
     process.stdout.write(`${ENTER_ALT_SCREEN}${CLEAR_SCREEN}`);
   }
 
-  exit(): void {
+  #exit(): void {
     if (process.stdout.isTTY !== true) return;
     process.stdout.write(EXIT_ALT_SCREEN);
   }
@@ -63,7 +60,7 @@ export class TuiClient implements Tui {
     process.stdout.write(HIDE_CURSOR);
   }
 
-  showCursor(): void {
+  #showCursor(): void {
     process.stdout.write(SHOW_CURSOR);
   }
 
@@ -84,8 +81,8 @@ export class TuiClient implements Tui {
     for (const callback of this.#cleanupCallbacks) callback();
     this.#cleanupCallbacks.length = 0;
     this.#restoreStdin();
-    this.exit();
-    process.stdout.write(SHOW_CURSOR);
+    this.#exit();
+    this.#showCursor();
     process.stdout.write(RESET);
   }
 
@@ -94,35 +91,35 @@ export class TuiClient implements Tui {
     process.exit(code);
   }
 
-  getSize(): { rows: number; cols: number } {
+  #getSize(): { rows: number; cols: number } {
     return {
       rows: process.stdout.rows ?? 24,
       cols: process.stdout.columns ?? 80,
     };
   }
 
-  visualRows(line: string, cols?: number): number {
+  #visualRows(line: string, cols?: number): number {
     const w = line.replace(ANSI_RE, '').length;
-    const c = cols ?? this.getSize().cols;
+    const c = cols ?? this.#getSize().cols;
     return w === 0 ? 1 : Math.max(1, Math.ceil(w / c));
   }
 
-  fitLines(
+  #fitLines(
     lines: string[],
     availableRows: number,
     moreMarker: string = '',
   ): string[] {
-    const cols = this.getSize().cols;
+    const cols = this.#getSize().cols;
 
     if (availableRows <= 0) return [];
 
-    const moreRows = moreMarker ? this.visualRows(moreMarker, cols) : 0;
+    const moreRows = moreMarker ? this.#visualRows(moreMarker, cols) : 0;
     const result: string[] = [];
     let used = 0;
     let truncated = false;
 
     for (const line of lines) {
-      const r = this.visualRows(line, cols);
+      const r = this.#visualRows(line, cols);
       if (used + r > availableRows) {
         truncated = true;
         break;
@@ -139,7 +136,7 @@ export class TuiClient implements Tui {
     } else if (moreMarker) {
       while (result.length > 0 && used + moreRows > availableRows) {
         const last = result.pop()!;
-        used -= this.visualRows(last, cols);
+        used -= this.#visualRows(last, cols);
       }
       if (availableRows - used >= moreRows) {
         result.push(moreMarker);
@@ -147,6 +144,40 @@ export class TuiClient implements Tui {
     }
 
     return result;
+  }
+
+  fitView(sections: {
+    header: string[];
+    body: string[];
+    footer: string[];
+    moreMarker?: string;
+  }): string[] {
+    const { rows, cols } = this.#getSize();
+    const headerRows = sections.header.reduce(
+      (n, l) => n + this.#visualRows(l, cols),
+      0,
+    );
+    const footerRows = sections.footer.reduce(
+      (n, l) => n + this.#visualRows(l, cols),
+      0,
+    );
+    const avail = rows - headerRows - footerRows;
+    const marker = sections.moreMarker ?? '';
+
+    let fitted: string[];
+    if (avail <= 0) {
+      fitted = [sections.body.find((l) => l.length > 0) ?? ''];
+    } else {
+      fitted = this.#fitLines(sections.body, avail, marker);
+    }
+
+    const used = headerRows + fitted.reduce((n, l) => n + this.#visualRows(l, cols), 0) + footerRows;
+    const pad = rows - used;
+    if (pad > 0) {
+      fitted.push(...Array<string>(pad).fill(''));
+    }
+
+    return [...sections.header, ...fitted, ...sections.footer];
   }
 
   #restoreStdin(): void {

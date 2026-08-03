@@ -88,7 +88,6 @@ function makeTuiState() {
       this.cleanup();
       quitCalled = true;
     },
-    exit(): void {},
     getSize(): { rows: number; cols: number } {
       return {
         rows: process.stdout.rows ?? 24,
@@ -134,6 +133,39 @@ function makeTuiState() {
       }
 
       return result;
+    },
+    fitView(sections: {
+      header: string[];
+      body: string[];
+      footer: string[];
+      moreMarker?: string;
+    }): string[] {
+      const { rows, cols } = this.getSize();
+      const headerRows = sections.header.reduce(
+        (n, l) => n + visualRows(l, cols),
+        0,
+      );
+      const footerRows = sections.footer.reduce(
+        (n, l) => n + visualRows(l, cols),
+        0,
+      );
+      const avail = rows - headerRows - footerRows;
+      const marker = sections.moreMarker ?? '';
+
+      let fitted: string[];
+      if (avail <= 0) {
+        fitted = [sections.body.find((l) => l.length > 0) ?? ''];
+      } else {
+        fitted = this.fitLines(sections.body, avail, marker);
+      }
+
+      const used = headerRows + fitted.reduce((n, l) => n + visualRows(l, cols), 0) + footerRows;
+      const pad = rows - used;
+      if (pad > 0) {
+        fitted.push(...Array<string>(pad).fill(''));
+      }
+
+      return [...sections.header, ...fitted, ...sections.footer];
     },
   };
 
