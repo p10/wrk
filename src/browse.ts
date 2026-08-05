@@ -97,7 +97,7 @@ export function browse(db: Db, tui: Tui): () => void {
     const o = offers[i];
     if (!o) return;
     const header: string[] = [
-      '',
+      `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
       `${o.title}`,
       `${o.company}${o.source ? `  (${o.source})` : ''}`,
     ];
@@ -127,15 +127,10 @@ export function browse(db: Db, tui: Tui): () => void {
       }
     }
 
-    const footer: string[] = [
-      '',
-      `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
-    ];
-
     const lines = tui.fitView({
       header,
       body: descLines,
-      footer,
+      footer: [],
       moreMarker: `${DIM}... (more)${RESET}`,
     });
     tui.clear();
