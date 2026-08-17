@@ -24,9 +24,7 @@ async function fetch(db: Db) {
   const { offers, urls } = await fetchOffers();
   const { inserted, skipped } = saveOffers(db, offers);
   db.close();
-  const insertedStr =
-    inserted > 0 ? `${GREEN}${inserted}${RESET}` : `${inserted}`;
-  console.log(`Inserted ${insertedStr}, skipped ${skipped}`);
+  console.log(`Inserted ${inserted}, skipped ${skipped}`);
   for (const url of urls) {
     console.log(`${DIM}${url}${RESET}`);
   }
