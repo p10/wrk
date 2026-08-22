@@ -29,20 +29,21 @@ export async function fetchDesc(link: string): Promise<string> {
   const dom = new JSDOM(html);
   const document = dom.window.document;
 
-  const wrap = document.querySelector('div[class*="tw-mb-12"]');
-  if (!wrap) throw new Error(`Description not found for job: ${link}`);
+  const wrapper = document.querySelector('common-posting-content-wrapper');
+  const content = wrapper?.children[0] ?? document.querySelector('article');
+  if (!content) throw new Error(`Description not found for job: ${link}`);
 
-  wrap
+  content
     .querySelectorAll(
       'common-posting-header, .posting-logo, ul.posting-info-row',
     )
     .forEach((n) => n.remove());
-  const sidebar = [...wrap.querySelectorAll('div')].find((d) =>
+  const sidebar = [...content.querySelectorAll('div, aside')].find((d) =>
     (d.textContent ?? '').trim().startsWith('Szczegóły oferty'),
   );
   sidebar?.remove();
 
-  return htmlToText(wrap);
+  return htmlToText(content);
 }
 
 export async function fetchNoFluffJobs(): Promise<{

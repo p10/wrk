@@ -133,15 +133,17 @@ describe('fetchNoFluffJobs', () => {
 describe('fetchDesc', () => {
   function detailHtml(body: string): string {
     return `<html><body>
-      <div class="tw-mb-12">
-        <section class="tw-block tw-p-5 tw-bg-white tw-rounded-xl tw-mb-4">
-          <common-posting-header class="tw-flex tw-mb-4"> Senior Frontend Developer / AI Lead ITFS Sp. z o.o. </common-posting-header>
-          <ul class="posting-info-row tw-grid desktop:tw-grid"> Kategoria: Frontend , TypeScript Senior Praca zdalna Dolnośląskie </ul>
-        </section>
-        <div class="tw-block tw-px-5 tw-pt-5 tw-pb-3"> Obowiązkowe TypeScript Next.js </div>
-        <section class="tw-block tw-p-5"><p>Opis wymagań</p><p>Minimum 4 lata doświadczenia</p></section>
-        <div> Szczegóły oferty Start 2026-09-21 Kontrakt </div>
-      </div>
+      <common-posting-content-wrapper>
+        <div>
+          <section class="tw-block tw-p-5 tw-bg-white tw-rounded-xl tw-mb-4">
+            <common-posting-header class="tw-flex tw-mb-4"> Senior Frontend Developer / AI Lead ITFS Sp. z o.o. </common-posting-header>
+            <ul class="posting-info-row tw-grid desktop:tw-grid"> Kategoria: Frontend , TypeScript Senior Praca zdalna Dolnośląskie </ul>
+          </section>
+          <div class="tw-block tw-px-5 tw-pt-5 tw-pb-3"> Obowiązkowe TypeScript Next.js </div>
+          <section class="tw-block tw-p-5"><p>Opis wymagań</p><p>Minimum 4 lata doświadczenia</p></section>
+          <div> Szczegóły oferty Start 2026-09-21 Kontrakt </div>
+        </div>
+      </common-posting-content-wrapper>
       ${body}
     </body></html>`;
   }
