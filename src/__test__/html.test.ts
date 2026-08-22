@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 
-import { htmlToText } from './html.ts';
+import { htmlToText } from '../html.ts';
 
 function node(html: string): Node {
   const dom = new JSDOM(`<body>${html}</body>`);

@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "lint": "oxlint"
   },
   "dependencies": {
     "jsdom": "^30.0.1"
@@ -11,6 +12,7 @@
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.2.0",
+    "oxlint": "^1.79.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }

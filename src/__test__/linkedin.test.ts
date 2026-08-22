@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchDesc, fetchLinkedInJobs } from './linkedin.ts';
+import { fetchDesc, fetchLinkedInJobs } from '../linkedin.ts';
 
-vi.mock('./request.ts', () => ({
+vi.mock('../request.ts', () => ({
   request: vi.fn(),
 }));
 
 const mockedRequest = vi.mocked(
-  (await import('./request.ts')).request,
+  (await import('../request.ts')).request,
   { deep: false },
 );
 

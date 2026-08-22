@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchDesc, fetchJustJoin } from './justjoin.ts';
+import { fetchDesc, fetchJustJoin } from '../justjoin.ts';
 
-vi.mock('./request.ts', () => ({
+vi.mock('../request.ts', () => ({
   request: vi.fn(),
 }));
 
-const mockedRequest = vi.mocked((await import('./request.ts')).request, {
+const mockedRequest = vi.mocked((await import('../request.ts')).request, {
   deep: false,
 });
 

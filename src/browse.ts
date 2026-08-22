@@ -78,7 +78,12 @@ export function browse(db: Db, tui: Tui): () => void {
   }
 
   function loadDescription(o: OfferRow): void {
-    if (o.source !== 'linkedin' && o.source !== 'justjoin') return;
+    if (
+      o.source !== 'linkedin' &&
+      o.source !== 'justjoin' &&
+      o.source !== 'nofluffjobs'
+    )
+      return;
     if (descCache.has(o.link)) return;
     descCache.set(o.link, { type: 'loading' });
     fetchDesc(o)

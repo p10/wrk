@@ -1,9 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { browse } from './browse.ts';
-import { type Db } from './db.ts';
-import { initTable, saveOffers } from './offer.ts';
+import { browse } from '../browse.ts';
+import { type Db } from '../db.ts';
+import { initTable, saveOffers } from '../offer.ts';
 
 type OfferRow = {
   source: 'linkedin' | 'justjoin';
@@ -18,7 +18,7 @@ type OfferRow = {
   languages?: string;
 };
 
-vi.mock('./linkedin.ts', () => ({
+vi.mock('../linkedin.ts', () => ({
   fetchDesc: vi.fn(
     (_link: string) =>
       new Promise<string>((resolve, reject) => {
@@ -27,7 +27,7 @@ vi.mock('./linkedin.ts', () => ({
   ),
 }));
 
-vi.mock('./justjoin.ts', () => ({
+vi.mock('../justjoin.ts', () => ({
   fetchDesc: vi.fn(
     (_link: string) =>
       new Promise<string>((resolve, reject) => {
@@ -184,11 +184,11 @@ function makeTuiState() {
 }
 
 const mockedLinkedInFetchDesc = vi.mocked(
-  (await import('./linkedin.ts')).fetchDesc,
+  (await import('../linkedin.ts')).fetchDesc,
   { deep: false },
 );
 const mockedJustJoinFetchDesc = vi.mocked(
-  (await import('./justjoin.ts')).fetchDesc,
+  (await import('../justjoin.ts')).fetchDesc,
   { deep: false },
 );
 const mockedSpawnSync = vi.mocked(

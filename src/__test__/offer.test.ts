@@ -1,28 +1,37 @@
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type Db } from './db.ts';
+import { type Db } from '../db.ts';
 import {
   fetchOffers,
   initTable,
   markHidden,
   saveOffers,
   selectVisibleOffers,
-} from './offer.ts';
+} from '../offer.ts';
 
-vi.mock('./linkedin.ts', () => ({
+vi.mock('../linkedin.ts', () => ({
   fetchLinkedInJobs: vi.fn(),
 }));
-vi.mock('./justjoin.ts', () => ({
+vi.mock('../justjoin.ts', () => ({
   fetchJustJoin: vi.fn(),
+}));
+vi.mock('../nofluffjobs.ts', () => ({
+  fetchNoFluffJobs: vi.fn(() =>
+    Promise.resolve({ offers: [], url: '' }),
+  ),
 }));
 
 const mockedFetchLinkedInJobs = vi.mocked(
-  (await import('./linkedin.ts')).fetchLinkedInJobs,
+  (await import('../linkedin.ts')).fetchLinkedInJobs,
   { deep: false },
 );
 const mockedFetchJustJoin = vi.mocked(
-  (await import('./justjoin.ts')).fetchJustJoin,
+  (await import('../justjoin.ts')).fetchJustJoin,
+  { deep: false },
+);
+const mockedFetchNoFluffJobs = vi.mocked(
+  (await import('../nofluffjobs.ts')).fetchNoFluffJobs,
   { deep: false },
 );
 
@@ -43,11 +52,12 @@ function makeDb(): Db {
 
 let db: Db;
 
-beforeEach(() => {
-  db = makeDb();
-  mockedFetchLinkedInJobs.mockReset();
-  mockedFetchJustJoin.mockReset();
-});
+  beforeEach(() => {
+    db = makeDb();
+    mockedFetchLinkedInJobs.mockReset();
+    mockedFetchJustJoin.mockReset();
+    mockedFetchNoFluffJobs.mockReset();
+  });
 
 describe('initTable', () => {
   it('creates the offers table without throwing', () => {
@@ -316,10 +326,11 @@ describe('fetchOffers', () => {
     expect(urls).toEqual([
       'https://linkedin.com/jobs/search?q=1',
       'https://justjoin.it/api/offers?q=1',
+      expect.any(String),
     ]);
   });
 
-  it('returns an empty offers array and two urls when both sources return empty', async () => {
+  it('returns an empty offers array and three urls when all sources return empty', async () => {
     mockedFetchLinkedInJobs.mockResolvedValue({
       offers: [],
       url: 'https://linkedin.com/jobs/search',
@@ -328,17 +339,23 @@ describe('fetchOffers', () => {
       offers: [],
       url: 'https://justjoin.it/api/offers',
     });
+    mockedFetchNoFluffJobs.mockResolvedValue({
+      offers: [],
+      url: 'https://nofluffjobs.com/pl/praca-zdalna/frontend',
+    });
     const { offers, urls } = await fetchOffers();
     expect(offers).toEqual([]);
-    expect(urls).toHaveLength(2);
+    expect(urls).toHaveLength(3);
   });
 
-  it('calls both fetchers exactly once', async () => {
+  it('calls all three fetchers exactly once', async () => {
     mockedFetchLinkedInJobs.mockResolvedValue({ offers: [], url: '' });
     mockedFetchJustJoin.mockResolvedValue({ offers: [], url: '' });
+    mockedFetchNoFluffJobs.mockResolvedValue({ offers: [], url: '' });
     await fetchOffers();
     expect(mockedFetchLinkedInJobs).toHaveBeenCalledTimes(1);
     expect(mockedFetchJustJoin).toHaveBeenCalledTimes(1);
+    expect(mockedFetchNoFluffJobs).toHaveBeenCalledTimes(1);
   });
 
   it('maps a linkedin offer with postedText fallback when postedDate missing', async () => {
@@ -401,6 +418,7 @@ describe('fetchOffers', () => {
   it('propagates rejection if either source throws', async () => {
     mockedFetchLinkedInJobs.mockResolvedValue({ offers: [], url: '' });
     mockedFetchJustJoin.mockRejectedValue(new Error('jj boom'));
+    mockedFetchNoFluffJobs.mockResolvedValue({ offers: [], url: '' });
     await expect(fetchOffers()).rejects.toThrow('jj boom');
   });
 });

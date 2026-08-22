@@ -8,14 +8,19 @@ import {
   fetchLinkedInJobs,
   type LinkedInOffer,
 } from './linkedin.ts';
+import {
+  fetchDesc as fetchNoFluffJobsDesc,
+  fetchNoFluffJobs,
+  type NoFluffJobsOffer,
+} from './nofluffjobs.ts';
 import { type Db } from './db.ts';
 
-export type OfferSource = 'linkedin' | 'justjoin';
+export type OfferSource = 'linkedin' | 'justjoin' | 'nofluffjobs';
 
 export function fetchDesc(offer: OfferRow): Promise<string> {
-  return offer.source === 'linkedin'
-    ? fetchLinkedInDesc(offer.link)
-    : fetchJustJoinDesc(offer.link);
+  if (offer.source === 'linkedin') return fetchLinkedInDesc(offer.link);
+  if (offer.source === 'nofluffjobs') return fetchNoFluffJobsDesc(offer.link);
+  return fetchJustJoinDesc(offer.link);
 }
 
 export type Offer = {
@@ -81,17 +86,19 @@ export async function fetchOffers(): Promise<{
   offers: Offer[];
   urls: string[];
 }> {
-  const [linkedin, justjoin] = await Promise.all([
+  const [linkedin, justjoin, nofluffjobs] = await Promise.all([
     fetchLinkedInJobs(),
     fetchJustJoin(),
+    fetchNoFluffJobs(),
   ]);
 
   return {
     offers: [
       ...linkedin.offers.map(mapLinkedInOffer),
       ...justjoin.offers.map(mapJustJoinOffer),
+      ...nofluffjobs.offers.map(mapNoFluffJobsOffer),
     ],
-    urls: [linkedin.url, justjoin.url],
+    urls: [linkedin.url, justjoin.url, nofluffjobs.url],
   };
 }
 
@@ -167,5 +174,18 @@ function mapJustJoinOffer(offer: JustJoinOffer): Offer {
     skills: offer.requiredSkills,
     locations: offer.locations,
     languages: offer.languages,
+  };
+}
+
+function mapNoFluffJobsOffer(offer: NoFluffJobsOffer): Offer {
+  return {
+    source: 'nofluffjobs',
+    link: offer.link,
+    title: offer.title,
+    company: offer.company,
+    locations: offer.location,
+    salary: offer.salary,
+    skills: offer.requiredSkills,
+    postedAt: offer.postedAt,
   };
 }

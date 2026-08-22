@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DIM, RESET, TuiClient, type ProcessLike } from './tui.ts';
+import { DIM, RESET, TuiClient, type ProcessLike } from '../tui.ts';
 
 type FakeProcess = ReturnType<typeof makeFakeProcess>;
 
