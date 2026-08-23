@@ -1,6 +1,8 @@
 I was bored + I look for a job = Job offers TUI :)
 
-LinkdedIn and JustJoinIt for now.
+- LinkdedIn
+- JustJoinIt
+- NoFluffJobs
 
 ```sh
 node src/index.ts --fetch

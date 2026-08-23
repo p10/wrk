@@ -53,7 +53,7 @@ function makeTuiState() {
     reject: (e: unknown) => void;
   }> = [];
 
-  const ANSI_RE = /\x1b\[[0-9;]*m/g;
+  const ANSI_RE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 
   function visualRows(line: string, cols: number): number {
     const w = line.replace(ANSI_RE, '').length;
@@ -702,7 +702,10 @@ describe('browse (description trimming)', () => {
         .join('\n'),
     );
     await flush();
-    const stripped = render().replace(/\x1b\[[0-9;]*m/g, '');
+    const stripped = render().replace(
+      new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'),
+      '',
+    );
     const lines = stripped.split('\n');
     expect(lines.length).toBe(24);
     expect(lines[23]).toContain('[1/1]');

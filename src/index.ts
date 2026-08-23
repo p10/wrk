@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { fetchOffers, initTable, saveOffers } from './offer.ts';
-import { getDb, type Db } from './db.ts';
 import { browse } from './browse.ts';
-import { TuiClient, DIM, GREEN, RESET } from './tui.ts';
+import { getDb, type Db } from './db.ts';
+import { fetchOffers, initTable, saveOffers } from './offer.ts';
+import { TuiClient, DIM, RESET } from './tui.ts';
 
 let cleanup: (() => void) | undefined;
 

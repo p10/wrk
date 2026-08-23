@@ -7,7 +7,7 @@ const RESET = '\x1b[0m';
 const DIM = '\x1b[2m';
 const GREEN = '\x1b[32m';
 
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+const ANSI_RE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 
 export { DIM, GREEN, RESET };
 

@@ -1,3 +1,4 @@
+import { type Db } from './db.ts';
 import {
   fetchDesc as fetchJustJoinDesc,
   fetchJustJoin,
@@ -13,7 +14,6 @@ import {
   fetchNoFluffJobs,
   type NoFluffJobsOffer,
 } from './nofluffjobs.ts';
-import { type Db } from './db.ts';
 
 export type OfferSource = 'linkedin' | 'justjoin' | 'nofluffjobs';
 
