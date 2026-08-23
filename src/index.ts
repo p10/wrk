@@ -14,19 +14,21 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--fetch')) {
     cleanup = () => db.close();
-    await fetch(db);
+    await fetch(db, args.includes('-v'));
   } else {
     cleanup = browse(db, new TuiClient());
   }
 }
 
-async function fetch(db: Db) {
+async function fetch(db: Db, verbose: boolean) {
   const { offers, urls } = await fetchOffers();
   const { inserted, skipped } = saveOffers(db, offers);
   db.close();
   console.log(`Inserted ${inserted}, skipped ${skipped}`);
-  for (const url of urls) {
-    console.log(`${DIM}${url}${RESET}`);
+  if (verbose) {
+    for (const url of urls) {
+      console.log(`${DIM}${url}${RESET}`);
+    }
   }
 }
 
