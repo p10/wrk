@@ -3,6 +3,7 @@
 // present in the initial HTML, so we parse the DOM directly (no JSON API).
 
 import { JSDOM } from 'jsdom';
+
 import { htmlToText } from './html.ts';
 import { request } from './request.ts';
 
@@ -43,7 +44,10 @@ export async function fetchDesc(link: string): Promise<string> {
   );
   sidebar?.remove();
 
-  return htmlToText(content);
+  const text = htmlToText(content);
+  return text
+    .replaceAll(/Opis .+ Oryginalny tekst\. /g, '')
+    .replaceAll('Pokaż tłumaczenie', '');
 }
 
 export async function fetchNoFluffJobs(): Promise<{
@@ -65,16 +69,22 @@ export async function fetchNoFluffJobs(): Promise<{
     const link = href.startsWith('http') ? href : `${BASE_URL}${href}`;
     const title = text(
       el.querySelector('h3[data-cy="title position on the job offer listing"]'),
-    );
+    )
+      .replaceAll('NOWA', '')
+      .trim();
     const company = text(el.querySelector('h4.company-name'));
     const salary = text(
-      el.querySelector('span[data-cy="salary ranges on the job offer listing"]'),
+      el.querySelector(
+        'span[data-cy="salary ranges on the job offer listing"]',
+      ),
     );
     const location = text(
       el.querySelector('[data-cy="location on the job offer listing"] span'),
     );
     const skills = [
-      ...el.querySelectorAll('span[data-cy="category name on the job offer listing"]'),
+      ...el.querySelectorAll(
+        'span[data-cy="category name on the job offer listing"]',
+      ),
     ]
       .map((s) => text(s))
       .filter(Boolean)
