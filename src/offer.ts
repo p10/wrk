@@ -141,7 +141,7 @@ export function selectVisibleOffers(db: Db): OfferRow[] {
            postedAt, salary, skills, locations, languages, hidden, savedAt
     FROM offers
     WHERE hidden = 0
-    ORDER BY postedAt IS NULL, postedAt DESC, savedAt DESC
+    ORDER BY postedAt IS NULL, postedAt ASC, savedAt ASC
   `);
   return select.all() as OfferRow[];
 }
