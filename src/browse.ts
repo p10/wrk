@@ -28,7 +28,7 @@ export function browse(db: Db, tui: Tui): () => void {
       case '\x03':
         tui.quit();
         break;
-      case 'n':
+      case 'm':
         move(1);
         break;
       case 'p':
@@ -37,7 +37,7 @@ export function browse(db: Db, tui: Tui): () => void {
       case 'o':
         openCurrent();
         break;
-      case 'm':
+      case 'n':
         hideCurrent();
         break;
     }
@@ -102,7 +102,7 @@ export function browse(db: Db, tui: Tui): () => void {
     const o = offers[i];
     if (!o) return;
     const header: string[] = [
-      `${DIM}[${i + 1}/${offers.length}]  n=next  p=prev  o=open  m=hide  q=quit${RESET}`,
+      `${DIM}[${i + 1}/${offers.length}]  n=hide  m=next  p=prev  o=open  q=quit${RESET}`,
       `${o.title}`,
       `${o.company}${o.source ? `  (${o.source})` : ''}`,
     ];
